@@ -16,11 +16,11 @@ export const TimeSelector = ({
   onStartTimeChange,
   onEndTimeChange,
 }) => {
-  // Genera gli orari disponibili
+  // Genera gli orari disponibili con intervalli di 15 minuti
   const generateTimeSlots = () => {
     const slots = [];
     for (let hour = 9; hour <= 20; hour++) {
-      for (let minute of ["00", "30"]) {
+      for (let minute of ["00", "15", "30", "45"]) {
         slots.push(`${hour.toString().padStart(2, "0")}:${minute}`);
       }
     }
@@ -55,13 +55,17 @@ export const TimeSelector = ({
           <Clock className="w-5 h-5" />
           Ora Inizio
         </h3>
-        <Select value={startTime} onValueChange={onStartTimeChange}>
+        <Select
+          value={startTime}
+          onValueChange={(value) => {
+            onStartTimeChange(value);
+            onEndTimeChange(""); // Reset endTime quando cambia startTime
+          }}
+        >
           <SelectTrigger>
             <SelectValue placeholder="Seleziona ora inizio" />
           </SelectTrigger>
           <SelectContent className="h-[200px]">
-            {" "}
-            {/* Altezza fissa per 5 elementi */}
             {timeSlots.slice(0, -1).map((time) => (
               <SelectItem
                 key={time}
@@ -93,8 +97,6 @@ export const TimeSelector = ({
             <SelectValue placeholder="Seleziona ora fine" />
           </SelectTrigger>
           <SelectContent className="h-[200px]">
-            {" "}
-            {/* Altezza fissa per 5 elementi */}
             {getAvailableEndTimes().map((time) => (
               <SelectItem
                 key={time}

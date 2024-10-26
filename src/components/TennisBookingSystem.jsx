@@ -1,273 +1,236 @@
 import React, { useState, useEffect } from "react";
-import { Calendar, LogOut } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Button } from "./ui/button";
+import { Alert, AlertDescription } from "./ui/alert";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "../components/ui/card";
-import { Button } from "../components/ui/button";
-import { Alert, AlertDescription } from "../components/ui/alert";
-import { BookingService } from "../services/bookingService";
-import { UserService } from "../services/userService";
-
-import { LoginForm } from "./LoginForm";
-import { SignUpForm } from "./SignUpForm";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 import { BookingCalendar } from "./BookingCalendar";
 import { TimeSelector } from "./TimeSelector";
 import { BookingsList } from "./BookingsList";
+import bookingService from "../services/bookingService";
 
-const TennisBookingSystem = () => {
-  // Stati per l'autenticazione
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
-  const [showSignUp, setShowSignUp] = useState(false);
-
+const TennisBookingSystem = ({ currentUser }) => {
   // Stati per la prenotazione
   const [selectedDate, setSelectedDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+  const [needsLight, setNeedsLight] = useState("");
   const [bookings, setBookings] = useState([]);
 
-  // Stati per l'UI
-  const [isLoading, setIsLoading] = useState(true);
+  // Stati UI
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // Carica le prenotazioni esistenti e lo stato dell'utente
+  // Carica le prenotazioni quando cambia la data
   useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        // Carica lo stato dell'utente dal localStorage
-        const savedUser = localStorage.getItem("tennis-user");
-        if (savedUser) {
-          const user = JSON.parse(savedUser);
-          setCurrentUser(user);
-          setIsLoggedIn(true);
-        }
+    if (selectedDate) {
+      loadBookings();
+    }
+  }, [selectedDate]);
 
-        // Carica le prenotazioni dal servizio
-        const fetchedBookings = await BookingService.fetchBookings();
-        setBookings(fetchedBookings);
-      } catch (error) {
-        setError("Errore nel caricamento dei dati. Riprova più tardi.");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadInitialData();
-  }, []);
-
-  const handleLogin = async (username, password) => {
+  const loadBookings = async () => {
     try {
-      const user = await UserService.login(username, password);
-      setIsLoggedIn(true);
-      setCurrentUser(user);
-      localStorage.setItem("tennis-user", JSON.stringify(user));
+      setLoading(true);
       setError("");
+      const fetchedBookings = await bookingService.getBookings(selectedDate);
+      setBookings(fetchedBookings);
     } catch (error) {
-      setError(error.message);
+      console.error("Error loading bookings:", error);
+      setError("Errore nel caricamento delle prenotazioni. Riprova.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSignUp = async (userData) => {
-    try {
-      const newUser = await UserService.register(userData);
-      setCurrentUser(newUser);
-      setIsLoggedIn(true);
-      localStorage.setItem("tennis-user", JSON.stringify(newUser));
-      setShowSignUp(false);
-      setError("");
-    } catch (error) {
-      setError(error.message);
+  const validateBooking = () => {
+    if (!selectedDate || !startTime || !endTime) {
+      setError("Seleziona data e orari per la prenotazione");
+      return false;
     }
-  };
 
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setCurrentUser(null);
-    setSelectedDate("");
-    setStartTime("");
-    setEndTime("");
-    localStorage.removeItem("tennis-user");
+    if (needsLight === "") {
+      setError("Specifica se necessiti dell'illuminazione");
+      return false;
+    }
+
+    // Verifica se è necessaria l'illuminazione per gli orari serali (dopo le 19:00)
+    const hour = parseInt(startTime.split(":")[0]);
+    if (hour >= 19 && needsLight === "no") {
+      setError("L'illuminazione è obbligatoria dopo le 19:00");
+      return false;
+    }
+
+    return true;
   };
 
   const handleBooking = async () => {
-    // Validazione input
-    if (!selectedDate || !startTime || !endTime) {
-      setError('Seleziona data e orari per la prenotazione');
+    if (!validateBooking()) {
       return;
     }
-  
-    if (startTime >= endTime) {
-      setError("L'ora di fine deve essere successiva all'ora di inizio");
-      return;
-    }
-  
-    // Controllo sovrapposizioni
-    const isOverlapping = bookings.some(booking => 
-      booking.date === selectedDate &&
-      ((startTime >= booking.startTime && startTime < booking.endTime) ||
-       (endTime > booking.startTime && endTime <= booking.endTime) ||
-       (startTime <= booking.startTime && endTime >= booking.endTime))
-    );
-  
-    if (isOverlapping) {
-      setError('Questo slot temporale si sovrappone con una prenotazione esistente');
-      return;
-    }
-  
+
     try {
-      // Creazione nuova prenotazione
-      const newBooking = await BookingService.createBooking({
+      setLoading(true);
+      setError("");
+
+      const newBooking = await bookingService.createBooking({
         date: selectedDate,
         startTime,
         endTime,
-        userId: currentUser.username,
-        userName: currentUser.name
+        needsLight: needsLight === "yes",
+        userId: currentUser.uid,
+        userName: currentUser.name,
       });
-  
-      // Aggiorna lo stato delle prenotazioni con il risultato dal servizio
-      setBookings(prevBookings => {
-        // Verifica che la prenotazione non sia già presente
-        const isDuplicate = prevBookings.some(booking => 
-          booking.id === newBooking.id ||
-          (booking.date === newBooking.date && 
-           booking.startTime === newBooking.startTime && 
-           booking.endTime === newBooking.endTime)
-        );
-  
-        if (isDuplicate) {
-          return prevBookings;
-        }
-        return [...prevBookings, newBooking];
-      });
-  
-      setSuccess('Prenotazione effettuata con successo!');
-      setError('');
-      
+
+      setBookings((prev) => [...prev, newBooking]);
+      setSuccess("Prenotazione effettuata con successo!");
+
       // Reset form
-      setStartTime('');
-      setEndTime('');
-  
-      // Rimuovi il messaggio di successo dopo 3 secondi
-      setTimeout(() => setSuccess(''), 3000);
+      setStartTime("");
+      setEndTime("");
+      setNeedsLight("");
+
+      setTimeout(() => {
+        setSuccess("");
+      }, 3000);
     } catch (error) {
-      setError('Errore durante la prenotazione. Riprova più tardi.');
+      console.error("Booking error:", error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleDeleteBooking = async (bookingId) => {
     try {
-      await BookingService.deleteBooking(bookingId);
+      setLoading(true);
+      setError("");
+      await bookingService.deleteBooking(bookingId);
+
       setBookings((prev) => prev.filter((booking) => booking.id !== bookingId));
       setSuccess("Prenotazione cancellata con successo!");
 
-      setTimeout(() => setSuccess(""), 3000);
+      setTimeout(() => {
+        setSuccess("");
+      }, 3000);
     } catch (error) {
-      setError("Errore durante la cancellazione. Riprova più tardi.");
+      console.error("Delete error:", error);
+      setError("Errore durante la cancellazione della prenotazione");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Se l'utente non è loggato, mostra il form di login o registrazione
-  if (!isLoggedIn) {
-    if (showSignUp) {
-      return (
-        <SignUpForm
-          onSignUp={handleSignUp}
-          onBackToLogin={() => setShowSignUp(false)}
-        />
-      );
-    }
-    return (
-      <LoginForm
-        onLogin={handleLogin}
-        onSignUpClick={() => setShowSignUp(true)}
-        error={error}
-      />
-    );
-  }
+  const calculatePrice = () => {
+    if (!startTime || !endTime) return null;
+
+    const [startHour, startMinute] = startTime.split(":").map(Number);
+    const [endHour, endMinute] = endTime.split(":").map(Number);
+
+    const duration = endHour - startHour + (endMinute - startMinute) / 60;
+    const basePrice = duration * 20; // 20€ per ora
+    const lightSupplement = needsLight === "yes" ? duration * 5 : 0; // 5€ per ora con luce
+
+    return basePrice + lightSupplement;
+  };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8">
-      <Card className="max-w-4xl mx-auto">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="w-6 h-6" />
-              Prenotazione Campo Tennis
-            </CardTitle>
-            <p className="text-sm text-gray-500 mt-1">
-              Benvenuto, {currentUser.name}
-            </p>
-          </div>
-          <Button
-            variant="outline"
-            onClick={handleLogout}
-            className="flex items-center gap-2"
-          >
-            <LogOut className="w-4 h-4" />
-            Logout
-          </Button>
+    <div className="p-8">
+      <Card>
+        <CardHeader>
+          <CardTitle>Prenota il Campo da Tennis</CardTitle>
         </CardHeader>
+        <CardContent className="space-y-6">
+          <BookingCalendar
+            selectedDate={selectedDate}
+            onDateSelect={setSelectedDate}
+          />
 
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center items-center py-8">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
-                <p className="text-gray-600">Caricamento prenotazioni...</p>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {/* Calendario */}
-              <BookingCalendar
+          {selectedDate && (
+            <>
+              <TimeSelector
                 selectedDate={selectedDate}
-                onDateSelect={setSelectedDate}
-              />
-
-              {/* Selettore orari */}
-              {selectedDate && (
-                <TimeSelector
-                  selectedDate={selectedDate}
-                  startTime={startTime}
-                  endTime={endTime}
-                  bookings={bookings}
-                  onStartTimeChange={setStartTime}
-                  onEndTimeChange={setEndTime}
-                />
-              )}
-
-              {/* Pulsante prenota */}
-              {selectedDate && startTime && endTime && (
-                <Button onClick={handleBooking} className="w-full">
-                  Prenota {startTime} - {endTime}
-                </Button>
-              )}
-
-              {/* Messaggi di feedback */}
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-              {success && (
-                <Alert>
-                  <AlertDescription>{success}</AlertDescription>
-                </Alert>
-              )}
-
-              {/* Lista delle prenotazioni */}
-              <BookingsList
+                startTime={startTime}
+                endTime={endTime}
                 bookings={bookings}
-                currentUser={currentUser}
-                onDeleteBooking={handleDeleteBooking}
-                selectedDate={selectedDate}
+                onStartTimeChange={setStartTime}
+                onEndTimeChange={setEndTime}
               />
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Illuminazione campo
+                </label>
+                <Select value={needsLight} onValueChange={setNeedsLight}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Seleziona se necessiti dell'illuminazione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="yes">Sì (+5€/ora)</SelectItem>
+                    <SelectItem value="no">No</SelectItem>
+                  </SelectContent>
+                </Select>
+                {needsLight === "" && startTime && endTime && (
+                  <p className="text-sm text-red-500">
+                    * Seleziona se necessiti dell'illuminazione
+                  </p>
+                )}
+              </div>
+
+              {startTime && endTime && (
+                <div className="space-y-4">
+                  {calculatePrice() !== null && (
+                    <div className="text-right">
+                      <p className="text-sm text-gray-600">
+                        Prezzo totale:{" "}
+                        <span className="font-bold">
+                          €{calculatePrice().toFixed(2)}
+                        </span>
+                      </p>
+                    </div>
+                  )}
+                  <Button
+                    onClick={handleBooking}
+                    disabled={loading || needsLight === ""}
+                    className="w-full"
+                  >
+                    {loading ? "Prenotazione in corso..." : "Prenota"}
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+
+          {loading && (
+            <div className="flex justify-center items-center p-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+              <span className="ml-2">Caricamento...</span>
             </div>
           )}
+
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {success && (
+            <Alert>
+              <AlertDescription>{success}</AlertDescription>
+            </Alert>
+          )}
+
+          <BookingsList
+            bookings={bookings}
+            currentUser={currentUser}
+            selectedDate={selectedDate}
+            onDeleteBooking={handleDeleteBooking}
+          />
         </CardContent>
       </Card>
     </div>

@@ -11,12 +11,20 @@ import { Input } from "../components/ui/input";
 import { Alert, AlertDescription } from "../components/ui/alert";
 
 export const LoginForm = ({ onLogin, onSignUpClick, error }) => {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onLogin(username, password);
+    setIsLoading(true);
+    try {
+      await onLogin(email, password);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -32,11 +40,12 @@ export const LoginForm = ({ onLogin, onSignUpClick, error }) => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Input
-                type="text"
-                placeholder="Username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="w-full"
+                required
               />
             </div>
             <div>
@@ -46,6 +55,7 @@ export const LoginForm = ({ onLogin, onSignUpClick, error }) => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full"
+                required
               />
             </div>
             {error && (
@@ -54,11 +64,11 @@ export const LoginForm = ({ onLogin, onSignUpClick, error }) => {
               </Alert>
             )}
             <div className="space-y-2">
-              <Button type="submit" className="w-full">
-                Accedi
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? "Accesso in corso..." : "Accedi"}
               </Button>
 
-              <div className="text-center text-sm text-gray-500">
+              <div className="text-center text-sm text-gray-500 my-2">
                 Non hai ancora un account?
               </div>
 
@@ -67,6 +77,7 @@ export const LoginForm = ({ onLogin, onSignUpClick, error }) => {
                 variant="outline"
                 className="w-full flex items-center gap-2 justify-center"
                 onClick={onSignUpClick}
+                disabled={isLoading}
               >
                 <UserPlus className="w-4 h-4" />
                 Registrati
