@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from "./ui/alert";
 import { User, Phone, Mail, Lock } from "lucide-react";
 import AuthService from "../services/authService";
 
-export const UserProfile = ({ currentUser }) => {
+export const UserProfile = ({ currentUser, onUserUpdate }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -20,6 +20,14 @@ export const UserProfile = ({ currentUser }) => {
     confirmPassword: "",
   });
 
+  useEffect(() => {
+    setFormData((prev) => ({
+      ...prev,
+      name: currentUser?.name || "",
+      phone: currentUser?.phone || "",
+    }));
+  }, [currentUser]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
@@ -27,47 +35,106 @@ export const UserProfile = ({ currentUser }) => {
       [name]: value,
     }));
     setError("");
+    setSuccess("");
   };
 
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
+    if (!isEditing) return;
+
     setLoading(true);
     setError("");
     setSuccess("");
 
     try {
-      // Aggiorna solo le informazioni di base del profilo
-      await AuthService.updateUserProfile(currentUser.uid, {
-        name: formData.name,
-        phone: formData.phone,
-      });
+      let hasChanges = false;
+      let updatedUserData = null;
 
-      // Se è stata inserita una nuova password, aggiornala
+      // Verifica se ci sono modifiche ai dati del profilo
+      if (
+        formData.name !== currentUser.name ||
+        formData.phone !== currentUser.phone
+      ) {
+        updatedUserData = await AuthService.updateUserProfile(currentUser.uid, {
+          name: formData.name,
+          phone: formData.phone,
+        });
+        hasChanges = true;
+
+        // Aggiorna lo stato globale dell'utente
+        if (updatedUserData && onUserUpdate) {
+          onUserUpdate({
+            ...currentUser,
+            ...updatedUserData,
+          });
+        }
+      }
+
+      // Verifica se è necessario aggiornare la password
       if (formData.newPassword) {
         if (formData.newPassword !== formData.confirmPassword) {
           throw new Error("Le password non coincidono");
+        }
+        if (!formData.currentPassword) {
+          throw new Error("Inserisci la password attuale");
         }
         await AuthService.changePassword(
           formData.currentPassword,
           formData.newPassword
         );
+        hasChanges = true;
       }
 
-      setSuccess("Profilo aggiornato con successo");
-      setIsEditing(false);
+      if (hasChanges) {
+        setSuccess("Profilo aggiornato con successo");
+        setIsEditing(false);
 
-      // Reset password fields
-      setFormData((prev) => ({
-        ...prev,
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: "",
-      }));
+        // Aggiorna il form con i nuovi dati
+        if (updatedUserData) {
+          setFormData((prev) => ({
+            ...prev,
+            name: updatedUserData.name || prev.name,
+            phone: updatedUserData.phone || prev.phone,
+            currentPassword: "",
+            newPassword: "",
+            confirmPassword: "",
+          }));
+        } else {
+          // Reset solo dei campi password
+          setFormData((prev) => ({
+            ...prev,
+            currentPassword: "",
+            newPassword: "",
+            confirmPassword: "",
+          }));
+        }
+      } else {
+        setError("Nessuna modifica effettuata");
+      }
     } catch (error) {
       setError(error.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleStartEditing = () => {
+    setIsEditing(true);
+    setError("");
+    setSuccess("");
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setError("");
+    setSuccess("");
+    setFormData({
+      name: currentUser?.name || "",
+      phone: currentUser?.phone || "",
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    });
   };
 
   return (
@@ -181,7 +248,7 @@ export const UserProfile = ({ currentUser }) => {
               {!isEditing ? (
                 <Button
                   type="button"
-                  onClick={() => setIsEditing(true)}
+                  onClick={handleStartEditing}
                   className="w-full"
                 >
                   Modifica Profilo
@@ -194,17 +261,7 @@ export const UserProfile = ({ currentUser }) => {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => {
-                      setIsEditing(false);
-                      setError("");
-                      setFormData({
-                        name: currentUser?.name || "",
-                        phone: currentUser?.phone || "",
-                        currentPassword: "",
-                        newPassword: "",
-                        confirmPassword: "",
-                      });
-                    }}
+                    onClick={handleCancel}
                     className="w-full"
                   >
                     Annulla

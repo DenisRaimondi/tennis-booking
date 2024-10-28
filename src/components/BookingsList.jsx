@@ -1,5 +1,5 @@
 import React from "react";
-import { Trash2, Clock, Sun, User, Calendar } from "lucide-react";
+import { Trash2, Clock, Sun, User } from "lucide-react";
 import { Button } from "./ui/button";
 import {
   Table,
@@ -34,16 +34,6 @@ export const BookingsList = ({
     return a.startTime.localeCompare(b.startTime);
   });
 
-  // Calcola il prezzo della prenotazione
-  const calculatePrice = (booking) => {
-    const [startHour, startMinute] = booking.startTime.split(":").map(Number);
-    const [endHour, endMinute] = booking.endTime.split(":").map(Number);
-    const duration = endHour - startHour + (endMinute - startMinute) / 60;
-    const basePrice = duration * 20; // 20€ per ora
-    const lightSupplement = booking.needsLight ? duration * 5 : 0; // 5€ per ora con luce
-    return basePrice + lightSupplement;
-  };
-
   // Formatta la data in italiano
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString("it-IT", {
@@ -69,7 +59,6 @@ export const BookingsList = ({
               <TableHead>Orario</TableHead>
               <TableHead>Utente</TableHead>
               <TableHead>Illuminazione</TableHead>
-              <TableHead>Prezzo</TableHead>
               <TableHead className="text-right">Azioni</TableHead>
             </TableRow>
           </TableHeader>
@@ -108,7 +97,6 @@ export const BookingsList = ({
                     {booking.needsLight ? "Sì" : "No"}
                   </div>
                 </TableCell>
-                <TableCell>€{calculatePrice(booking).toFixed(2)}</TableCell>
                 <TableCell className="text-right">
                   {booking.userId === currentUser.uid && (
                     <Button
@@ -130,24 +118,6 @@ export const BookingsList = ({
 
       <div className="text-sm text-gray-500 mt-2">
         * Le prenotazioni evidenziate in blu sono le tue
-      </div>
-
-      {/* Riepilogo totali */}
-      <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-sm text-gray-600">Totale prenotazioni:</p>
-            <p className="text-lg font-bold">{bookings.length}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-600">
-              Prenotazioni con illuminazione:
-            </p>
-            <p className="text-lg font-bold">
-              {bookings.filter((b) => b.needsLight).length}
-            </p>
-          </div>
-        </div>
       </div>
     </div>
   );

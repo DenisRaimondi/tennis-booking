@@ -5,13 +5,14 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
-import authService from "./services/authService";
+import { Navbar } from "./components/Navbar";
 import TennisBookingSystem from "./components/TennisBookingSystem";
 import { LoginForm } from "./components/LoginForm";
 import { SignUpForm } from "./components/SignUpForm";
-import { Navbar } from "./components/Navbar";
 import { UserProfile } from "./components/UserProfile";
+import { EmailVerification } from "./components/EmailVerification";
 import { AdminDashboard } from "./components/admin/AdminDashboard";
+import authService from "./services/authService";
 
 const App = () => {
   const [currentUser, setCurrentUser] = useState(null);
@@ -54,7 +55,9 @@ const App = () => {
       setError("");
       await authService.register(userData);
       setShowSignUp(false);
-      setError("Registrazione completata! In attesa di approvazione.");
+      setError(
+        "Registrazione completata! Verifica la tua email per procedere."
+      );
     } catch (error) {
       setError(error.message);
     }
@@ -126,6 +129,8 @@ const App = () => {
               )
             }
           />
+
+          <Route path="/verify-email" element={<EmailVerification />} />
 
           <Route
             path="/admin/*"

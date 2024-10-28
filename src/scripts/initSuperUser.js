@@ -20,7 +20,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 const SUPER_USER_CONFIG = {
-  email: "admin@tennis.com",
+  email: "denis.raimondi@gmail.com",
   password: "admin123456",
   name: "Admin Tennis",
   phone: "1234567890",

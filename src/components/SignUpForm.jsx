@@ -9,6 +9,7 @@ import {
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Alert, AlertDescription } from "../components/ui/alert";
+import GDPRConsent from "./GDPRConsent";
 
 export const SignUpForm = ({ onSignUp, onBackToLogin, error }) => {
   const [formData, setFormData] = useState({
@@ -16,7 +17,12 @@ export const SignUpForm = ({ onSignUp, onBackToLogin, error }) => {
     password: "",
     confirmPassword: "",
     name: "",
-    phone: "", // Nuovo campo telefono
+    phone: "",
+  });
+
+  const [consents, setConsents] = useState({
+    terms: false,
+    privacy: false,
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -34,14 +40,19 @@ export const SignUpForm = ({ onSignUp, onBackToLogin, error }) => {
       return false;
     }
 
-    // Validazione email
+    if (!consents.terms || !consents.privacy) {
+      setValidationError(
+        "È necessario accettare i termini e l'informativa sulla privacy"
+      );
+      return false;
+    }
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
       setValidationError("Email non valida");
       return false;
     }
 
-    // Validazione telefono
     const phoneRegex = /^[0-9]{10}$/;
     if (!phoneRegex.test(formData.phone)) {
       setValidationError("Inserisci un numero di telefono valido (10 cifre)");
@@ -69,10 +80,13 @@ export const SignUpForm = ({ onSignUp, onBackToLogin, error }) => {
     try {
       await onSignUp({
         ...formData,
-        status: "PENDING", // Stato iniziale in attesa di approvazione
-        role: "USER", // Ruolo default
+        status: "PENDING",
+        role: "USER",
+        gdprConsents: {
+          ...consents,
+          acceptedAt: new Date().toISOString(),
+        },
       });
-      // Il messaggio di successo verrà mostrato dal componente padre
     } catch (error) {
       setValidationError(error.message);
     } finally {
@@ -86,6 +100,11 @@ export const SignUpForm = ({ onSignUp, onBackToLogin, error }) => {
       ...prev,
       [name]: value,
     }));
+    setValidationError("");
+  };
+
+  const handleConsentsChange = (newConsents) => {
+    setConsents(newConsents);
     setValidationError("");
   };
 
@@ -156,6 +175,12 @@ export const SignUpForm = ({ onSignUp, onBackToLogin, error }) => {
                 required
               />
             </div>
+
+            <GDPRConsent
+              consents={consents}
+              onChange={handleConsentsChange}
+              className="mt-6"
+            />
 
             {(validationError || error) && (
               <Alert variant="destructive">

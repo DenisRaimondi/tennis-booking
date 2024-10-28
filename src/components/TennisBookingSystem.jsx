@@ -1,33 +1,26 @@
-import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { Button } from "./ui/button";
-import { Alert, AlertDescription } from "./ui/alert";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
-import { BookingCalendar } from "./BookingCalendar";
-import { TimeSelector } from "./TimeSelector";
-import { BookingsList } from "./BookingsList";
-import bookingService from "../services/bookingService";
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Button } from './ui/button';
+import { Alert, AlertDescription } from './ui/alert';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { BookingCalendar } from './BookingCalendar';
+import { TimeSelector } from './TimeSelector';
+import { BookingsList } from './BookingsList';
+import bookingService from '../services/bookingService';
 
 const TennisBookingSystem = ({ currentUser }) => {
   // Stati per la prenotazione
-  const [selectedDate, setSelectedDate] = useState("");
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
-  const [needsLight, setNeedsLight] = useState("");
+  const [selectedDate, setSelectedDate] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [needsLight, setNeedsLight] = useState('');
   const [bookings, setBookings] = useState([]);
 
   // Stati UI
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
-  // Carica le prenotazioni quando cambia la data
   useEffect(() => {
     if (selectedDate) {
       loadBookings();
@@ -37,12 +30,12 @@ const TennisBookingSystem = ({ currentUser }) => {
   const loadBookings = async () => {
     try {
       setLoading(true);
-      setError("");
+      setError('');
       const fetchedBookings = await bookingService.getBookings(selectedDate);
       setBookings(fetchedBookings);
     } catch (error) {
-      console.error("Error loading bookings:", error);
-      setError("Errore nel caricamento delle prenotazioni. Riprova.");
+      console.error('Error loading bookings:', error);
+      setError('Errore nel caricamento delle prenotazioni. Riprova.');
     } finally {
       setLoading(false);
     }
@@ -50,19 +43,19 @@ const TennisBookingSystem = ({ currentUser }) => {
 
   const validateBooking = () => {
     if (!selectedDate || !startTime || !endTime) {
-      setError("Seleziona data e orari per la prenotazione");
+      setError('Seleziona data e orari per la prenotazione');
       return false;
     }
 
-    if (needsLight === "") {
-      setError("Specifica se necessiti dell'illuminazione");
+    if (needsLight === '') {
+      setError('Specifica se necessiti dell\'illuminazione');
       return false;
     }
 
     // Verifica se è necessaria l'illuminazione per gli orari serali (dopo le 19:00)
-    const hour = parseInt(startTime.split(":")[0]);
-    if (hour >= 19 && needsLight === "no") {
-      setError("L'illuminazione è obbligatoria dopo le 19:00");
+    const hour = parseInt(startTime.split(':')[0]);
+    if (hour >= 19 && needsLight === 'no') {
+      setError('L\'illuminazione è obbligatoria dopo le 19:00');
       return false;
     }
 
@@ -76,30 +69,30 @@ const TennisBookingSystem = ({ currentUser }) => {
 
     try {
       setLoading(true);
-      setError("");
+      setError('');
 
       const newBooking = await bookingService.createBooking({
         date: selectedDate,
         startTime,
         endTime,
-        needsLight: needsLight === "yes",
+        needsLight: needsLight === 'yes',
         userId: currentUser.uid,
-        userName: currentUser.name,
+        userName: currentUser.name
       });
 
-      setBookings((prev) => [...prev, newBooking]);
-      setSuccess("Prenotazione effettuata con successo!");
-
+      setBookings(prev => [...prev, newBooking]);
+      setSuccess('Prenotazione effettuata con successo!');
+      
       // Reset form
-      setStartTime("");
-      setEndTime("");
-      setNeedsLight("");
+      setStartTime('');
+      setEndTime('');
+      setNeedsLight('');
 
       setTimeout(() => {
-        setSuccess("");
+        setSuccess('');
       }, 3000);
     } catch (error) {
-      console.error("Booking error:", error);
+      console.error('Booking error:', error);
       setError(error.message);
     } finally {
       setLoading(false);
@@ -109,34 +102,21 @@ const TennisBookingSystem = ({ currentUser }) => {
   const handleDeleteBooking = async (bookingId) => {
     try {
       setLoading(true);
-      setError("");
+      setError('');
       await bookingService.deleteBooking(bookingId);
-
-      setBookings((prev) => prev.filter((booking) => booking.id !== bookingId));
-      setSuccess("Prenotazione cancellata con successo!");
+      
+      setBookings(prev => prev.filter(booking => booking.id !== bookingId));
+      setSuccess('Prenotazione cancellata con successo!');
 
       setTimeout(() => {
-        setSuccess("");
+        setSuccess('');
       }, 3000);
     } catch (error) {
-      console.error("Delete error:", error);
-      setError("Errore durante la cancellazione della prenotazione");
+      console.error('Delete error:', error);
+      setError('Errore durante la cancellazione della prenotazione');
     } finally {
       setLoading(false);
     }
-  };
-
-  const calculatePrice = () => {
-    if (!startTime || !endTime) return null;
-
-    const [startHour, startMinute] = startTime.split(":").map(Number);
-    const [endHour, endMinute] = endTime.split(":").map(Number);
-
-    const duration = endHour - startHour + (endMinute - startMinute) / 60;
-    const basePrice = duration * 20; // 20€ per ora
-    const lightSupplement = needsLight === "yes" ? duration * 5 : 0; // 5€ per ora con luce
-
-    return basePrice + lightSupplement;
   };
 
   return (
@@ -166,42 +146,33 @@ const TennisBookingSystem = ({ currentUser }) => {
                 <label className="text-sm font-medium">
                   Illuminazione campo
                 </label>
-                <Select value={needsLight} onValueChange={setNeedsLight}>
+                <Select
+                  value={needsLight}
+                  onValueChange={setNeedsLight}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Seleziona se necessiti dell'illuminazione" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="yes">Sì (+5€/ora)</SelectItem>
+                    <SelectItem value="yes">Sì</SelectItem>
                     <SelectItem value="no">No</SelectItem>
                   </SelectContent>
                 </Select>
-                {needsLight === "" && startTime && endTime && (
+                {needsLight === '' && startTime && endTime && (
                   <p className="text-sm text-red-500">
                     * Seleziona se necessiti dell'illuminazione
                   </p>
                 )}
               </div>
 
-              {startTime && endTime && (
-                <div className="space-y-4">
-                  {calculatePrice() !== null && (
-                    <div className="text-right">
-                      <p className="text-sm text-gray-600">
-                        Prezzo totale:{" "}
-                        <span className="font-bold">
-                          €{calculatePrice().toFixed(2)}
-                        </span>
-                      </p>
-                    </div>
-                  )}
-                  <Button
-                    onClick={handleBooking}
-                    disabled={loading || needsLight === ""}
-                    className="w-full"
-                  >
-                    {loading ? "Prenotazione in corso..." : "Prenota"}
-                  </Button>
-                </div>
+              {startTime && endTime && needsLight !== '' && (
+                <Button
+                  onClick={handleBooking}
+                  disabled={loading}
+                  className="w-full"
+                >
+                  {loading ? 'Prenotazione in corso...' : 'Prenota'}
+                </Button>
               )}
             </>
           )}

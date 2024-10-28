@@ -1,30 +1,60 @@
 import {
+  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
-  createUserWithEmailAndPassword,
   sendEmailVerification,
   sendPasswordResetEmail,
-  updateProfile,
+  updatePassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
 } from "firebase/auth";
 import {
   doc,
   setDoc,
   getDoc,
-  getDocs,
   updateDoc,
   collection,
   query,
-  where,
-  serverTimestamp,
+  getDocs,
 } from "firebase/firestore";
 import { auth, db } from "../config/firebase";
 
 class AuthService {
-  constructor() {
-    this.usersCollection = "users";
+  async register(userData) {
+    try {
+      // Crea l'utente in Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        userData.email,
+        userData.password
+      );
+
+      // Salva i dati addizionali in Firestore
+      const userRef = doc(db, "users", userCredential.user.uid);
+      await setDoc(userRef, {
+        name: userData.name,
+        email: userData.email,
+        phone: userData.phone,
+        role: "USER",
+        status: "PENDING",
+        createdAt: new Date().toISOString(),
+        gdpr: {
+          terms: userData.gdprConsents.terms,
+          privacy: userData.gdprConsents.privacy,
+          acceptedAt: userData.gdprConsents.acceptedAt,
+        },
+      });
+
+      // Invia email di verifica
+      await sendEmailVerification(userCredential.user);
+
+      return userCredential.user;
+    } catch (error) {
+      console.error("Registration error:", error);
+      throw this.handleError(error);
+    }
   }
 
-  // Login
   async login(email, password) {
     try {
       const userCredential = await signInWithEmailAndPassword(
@@ -32,224 +62,180 @@ class AuthService {
         email,
         password
       );
-      const userDoc = await getDoc(
-        doc(db, this.usersCollection, userCredential.user.uid)
-      );
+
+      // Ottieni i dati aggiuntivi da Firestore
+      const userDoc = await getDoc(doc(db, "users", userCredential.user.uid));
 
       if (!userDoc.exists()) {
-        throw new Error("Utente non trovato");
+        throw new Error("Dati utente non trovati");
       }
 
       const userData = userDoc.data();
 
+      // Verifica lo stato dell'utente
       if (userData.status === "PENDING") {
         throw new Error("Account in attesa di approvazione");
       }
-
       if (userData.status === "DISABLED") {
         throw new Error("Account disabilitato");
       }
 
-      await updateDoc(doc(db, this.usersCollection, userCredential.user.uid), {
-        lastLogin: serverTimestamp(),
-      });
-
       return {
-        uid: userCredential.user.uid,
-        email: userCredential.user.email,
-        name: userData.name,
-        role: userData.role,
-        status: userData.status,
-        phone: userData.phone,
+        ...userCredential.user,
+        ...userData,
       };
     } catch (error) {
       console.error("Login error:", error);
-      throw new Error(this.getAuthErrorMessage(error.code));
+      throw this.handleError(error);
     }
   }
 
-  // Registrazione
-  async register(userData) {
-    try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        userData.email,
-        userData.password
-      );
-
-      await updateProfile(userCredential.user, {
-        displayName: userData.name,
-      });
-
-      await sendEmailVerification(userCredential.user);
-
-      await setDoc(doc(db, this.usersCollection, userCredential.user.uid), {
-        name: userData.name,
-        email: userData.email,
-        phone: userData.phone,
-        role: "USER",
-        status: "PENDING",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-
-      return {
-        uid: userCredential.user.uid,
-        email: userData.email,
-        name: userData.name,
-        status: "PENDING",
-      };
-    } catch (error) {
-      console.error("Registration error:", error);
-      throw new Error(this.getAuthErrorMessage(error.code));
-    }
-  }
-
-  // Logout
   async logout() {
     try {
       await signOut(auth);
-      localStorage.removeItem("tennis-user");
     } catch (error) {
       console.error("Logout error:", error);
-      throw new Error("Errore durante il logout");
+      throw this.handleError(error);
     }
   }
 
-  // Reset password
+  async getCurrentUser() {
+    try {
+      const user = auth.currentUser;
+      if (!user) return null;
+
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      if (!userDoc.exists()) return null;
+
+      return {
+        ...user,
+        ...userDoc.data(),
+      };
+    } catch (error) {
+      console.error("Get current user error:", error);
+      throw this.handleError(error);
+    }
+  }
+
+  async updateUserProfile(userId, userData) {
+    try {
+      const userRef = doc(db, "users", userId);
+      await updateDoc(userRef, userData);
+      return userData;
+    } catch (error) {
+      console.error("Update profile error:", error);
+      throw this.handleError(error);
+    }
+  }
+
+  async changePassword(currentPassword, newPassword) {
+    try {
+      const user = auth.currentUser;
+      if (!user || !user.email) throw new Error("Nessun utente autenticato");
+
+      // Riautentica l'utente
+      const credential = EmailAuthProvider.credential(
+        user.email,
+        currentPassword
+      );
+      await reauthenticateWithCredential(user, credential);
+
+      // Cambia la password
+      await updatePassword(user, newPassword);
+    } catch (error) {
+      console.error("Change password error:", error);
+      throw this.handleError(error);
+    }
+  }
+
   async resetPassword(email) {
     try {
       await sendPasswordResetEmail(auth, email);
     } catch (error) {
-      throw new Error(this.getAuthErrorMessage(error.code));
+      console.error("Reset password error:", error);
+      throw this.handleError(error);
     }
   }
 
-  // Recupera tutti gli utenti (solo per admin)
+  async verifyEmail(oobCode) {
+    try {
+      await this.auth.applyActionCode(oobCode);
+    } catch (error) {
+      console.error("Email verification error:", error);
+      throw this.handleError(error);
+    }
+  }
+
+  // Metodi Admin
   async getAllUsers() {
     try {
-      const usersRef = collection(db, this.usersCollection);
-      const querySnapshot = await getDocs(usersRef);
-
-      const users = [];
-      querySnapshot.forEach((doc) => {
-        users.push({
-          id: doc.id,
-          ...doc.data(),
-        });
-      });
-
-      return users;
-    } catch (error) {
-      console.error("Error getting users:", error);
-      throw new Error("Errore nel recupero degli utenti");
-    }
-  }
-
-  // Recupera gli utenti in attesa di approvazione
-  async getPendingUsers() {
-    try {
-      const q = query(
-        collection(db, this.usersCollection),
-        where("status", "==", "PENDING")
-      );
-
-      const querySnapshot = await getDocs(q);
+      const usersRef = collection(db, "users");
+      const querySnapshot = await getDocs(query(usersRef));
       return querySnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
     } catch (error) {
-      console.error("Error getting pending users:", error);
-      throw new Error("Errore nel recupero degli utenti in attesa");
+      console.error("Get all users error:", error);
+      throw this.handleError(error);
     }
   }
 
-  // Approva un utente
   async approveUser(userId) {
     try {
-      await updateDoc(doc(db, this.usersCollection, userId), {
+      const userRef = doc(db, "users", userId);
+      await updateDoc(userRef, {
         status: "ACTIVE",
-        updatedAt: serverTimestamp(),
-        approvedAt: serverTimestamp(),
       });
     } catch (error) {
-      console.error("Error approving user:", error);
-      throw new Error("Errore durante l'approvazione dell'utente");
+      console.error("Approve user error:", error);
+      throw this.handleError(error);
     }
   }
 
-  // Disabilita un utente
   async disableUser(userId) {
     try {
-      await updateDoc(doc(db, this.usersCollection, userId), {
-        status: "DISABLED",
-        updatedAt: serverTimestamp(),
-        disabledAt: serverTimestamp(),
-      });
-    } catch (error) {
-      console.error("Error disabling user:", error);
-      throw new Error("Errore durante la disabilitazione dell'utente");
-    }
-  }
-
-  // Riattiva un utente
-  async reactivateUser(userId) {
-    try {
-      await updateDoc(doc(db, this.usersCollection, userId), {
-        status: "ACTIVE",
-        updatedAt: serverTimestamp(),
-        reactivatedAt: serverTimestamp(),
-      });
-    } catch (error) {
-      console.error("Error reactivating user:", error);
-      throw new Error("Errore durante la riattivazione dell'utente");
-    }
-  }
-
-  // Aggiorna profilo utente
-  async updateUserProfile(userId, updateData) {
-    try {
-      const userRef = doc(db, this.usersCollection, userId);
-
+      const userRef = doc(db, "users", userId);
       await updateDoc(userRef, {
-        ...updateData,
-        updatedAt: serverTimestamp(),
+        status: "DISABLED",
       });
-
-      if (updateData.name) {
-        const user = auth.currentUser;
-        if (user) {
-          await updateProfile(user, {
-            displayName: updateData.name,
-          });
-        }
-      }
     } catch (error) {
-      console.error("Error updating profile:", error);
-      throw new Error("Errore durante l'aggiornamento del profilo");
+      console.error("Disable user error:", error);
+      throw this.handleError(error);
     }
   }
 
-  // Gestione messaggi di errore
-  getAuthErrorMessage(errorCode) {
-    const errorMessages = {
-      "auth/email-already-in-use": "Questa email è già registrata",
-      "auth/invalid-email": "Email non valida",
-      "auth/operation-not-allowed": "Operazione non consentita",
-      "auth/weak-password": "Password troppo debole",
-      "auth/user-disabled": "Account disabilitato",
-      "auth/user-not-found": "Utente non trovato",
-      "auth/wrong-password": "Password non corretta",
-      "auth/too-many-requests": "Troppi tentativi. Riprova più tardi",
-      "auth/requires-recent-login":
-        "Effettua nuovamente il login per continuare",
-      default: "Errore di autenticazione",
-    };
+  handleError(error) {
+    let message = "Si è verificato un errore";
 
-    return errorMessages[errorCode] || errorMessages.default;
+    switch (error.code) {
+      case "auth/email-already-in-use":
+        message = "Email già registrata";
+        break;
+      case "auth/invalid-email":
+        message = "Email non valida";
+        break;
+      case "auth/operation-not-allowed":
+        message = "Operazione non consentita";
+        break;
+      case "auth/weak-password":
+        message = "Password troppo debole";
+        break;
+      case "auth/user-disabled":
+        message = "Account disabilitato";
+        break;
+      case "auth/user-not-found":
+        message = "Utente non trovato";
+        break;
+      case "auth/wrong-password":
+        message = "Password non corretta";
+        break;
+      default:
+        message = error.message || "Si è verificato un errore";
+    }
+
+    return new Error(message);
   }
 }
 
-const authService = new AuthService();
-export default authService;
+export default new AuthService();
