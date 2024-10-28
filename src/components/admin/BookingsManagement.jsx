@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Calendar, User, Sun, Clock } from "lucide-react";
 import { Button } from "../ui/button";
-import { Input } from "../ui/input";
 import { Alert, AlertDescription } from "../ui/alert";
 import {
   Table,
@@ -11,15 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "../ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import authService from "../../services/authService";
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import bookingService from "../../services/bookingService";
 
 export const BookingsManagement = () => {
@@ -27,33 +17,20 @@ export const BookingsManagement = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [deletingId, setDeletingId] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
 
-  // Filtri
-  const [dateRange, setDateRange] = useState({ start: "", end: "" });
-  const [userFilter, setUserFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ALL");
-
-  // Stats
-  const [stats, setStats] = useState({
-    totalBookings: 0,
-    totalRevenue: 0,
-    lightUsage: 0,
-    averageDuration: 0,
-  });
-
+  // Carica le prenotazioni all'avvio del componente
   useEffect(() => {
     loadBookings();
-  }, [dateRange]);
+  }, []);
 
   const loadBookings = async () => {
     try {
       setLoading(true);
-      const fetchedBookings = await bookingService.getBookings(
-        dateRange.start,
-        dateRange.end
-      );
+      const fetchedBookings = await bookingService.getBookings();
       setBookings(fetchedBookings);
-      calculateStats(fetchedBookings);
     } catch (error) {
       setError("Errore nel caricamento delle prenotazioni");
     } finally {
@@ -61,141 +38,41 @@ export const BookingsManagement = () => {
     }
   };
 
-  const calculateStats = (bookingsList) => {
-    const stats = bookingsList.reduce(
-      (acc, booking) => {
-        // Calcola durata in ore
-        const duration = calculateDuration(booking.startTime, booking.endTime);
-
-        // Calcola prezzo
-        const price = calculatePrice(booking);
-
-        return {
-          totalBookings: acc.totalBookings + 1,
-          totalRevenue: acc.totalRevenue + price,
-          lightUsage: acc.lightUsage + (booking.needsLight ? 1 : 0),
-          totalDuration: acc.totalDuration + duration,
-        };
-      },
-      { totalBookings: 0, totalRevenue: 0, lightUsage: 0, totalDuration: 0 }
-    );
-
-    setStats({
-      totalBookings: stats.totalBookings,
-      totalRevenue: stats.totalRevenue,
-      lightUsage: ((stats.lightUsage / stats.totalBookings) * 100).toFixed(1),
-      averageDuration: (stats.totalDuration / stats.totalBookings).toFixed(1),
-    });
-  };
-
-  const calculateDuration = (start, end) => {
-    const [startHour, startMinute] = start.split(":").map(Number);
-    const [endHour, endMinute] = end.split(":").map(Number);
-    return endHour - startHour + (endMinute - startMinute) / 60;
-  };
-
-  const calculatePrice = (booking) => {
-    const duration = calculateDuration(booking.startTime, booking.endTime);
-    const basePrice = duration * 20; // 20€ per ora
-    const lightSupplement = booking.needsLight ? duration * 5 : 0; // 5€ per ora con luce
-    return basePrice + lightSupplement;
-  };
-
-  const handleCancelBooking = async (bookingId) => {
+  // Gestisce l'eliminazione di una prenotazione
+  const handleDelete = async (bookingId) => {
     try {
-      await bookingService.cancelBooking(bookingId);
+      setDeletingId(bookingId);
+      await bookingService.deleteBooking(bookingId);
+      
       setSuccess("Prenotazione cancellata con successo");
-      loadBookings();
+      // Rimuove la prenotazione dalla lista locale
+      setBookings(prev => prev.filter(booking => booking.id !== bookingId));
+      
+      setTimeout(() => setSuccess(""), 3000);
     } catch (error) {
-      setError("Errore durante la cancellazione");
+      setError("Errore nella cancellazione della prenotazione");
+    } finally {
+      setDeletingId(null);
     }
   };
 
-  const filteredBookings = bookings
-    .filter((booking) => {
-      if (userFilter) {
-        return (
-          booking.userName.toLowerCase().includes(userFilter.toLowerCase()) ||
-          booking.userId.toLowerCase().includes(userFilter.toLowerCase())
-        );
-      }
-      return true;
-    })
-    .filter((booking) => {
-      if (statusFilter === "ALL") return true;
-      return booking.status === statusFilter;
-    });
+  // Calcola l'indice iniziale e finale per la paginazione
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = bookings.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(bookings.length / itemsPerPage);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center p-8">
+        Caricamento prenotazioni...
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-bold">{stats.totalBookings}</div>
-            <p className="text-muted-foreground">Prenotazioni Totali</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-bold">
-              €{stats.totalRevenue.toFixed(2)}
-            </div>
-            <p className="text-muted-foreground">Ricavo Totale</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-bold">{stats.lightUsage}%</div>
-            <p className="text-muted-foreground">Utilizzo Illuminazione</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-bold">{stats.averageDuration}h</div>
-            <p className="text-muted-foreground">Durata Media</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filtri */}
-      <div className="flex flex-wrap gap-4">
-        <Input
-          type="date"
-          value={dateRange.start}
-          onChange={(e) =>
-            setDateRange((prev) => ({ ...prev, start: e.target.value }))
-          }
-          className="w-auto"
-        />
-        <Input
-          type="date"
-          value={dateRange.end}
-          onChange={(e) =>
-            setDateRange((prev) => ({ ...prev, end: e.target.value }))
-          }
-          className="w-auto"
-        />
-        <Input
-          placeholder="Cerca utente"
-          value={userFilter}
-          onChange={(e) => setUserFilter(e.target.value)}
-          className="w-auto"
-        />
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Stato" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">Tutti gli stati</SelectItem>
-            <SelectItem value="ACTIVE">Attive</SelectItem>
-            <SelectItem value="CANCELLED">Cancellate</SelectItem>
-            <SelectItem value="COMPLETED">Completate</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Messages */}
+      {/* Messaggi di errore e successo */}
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
@@ -207,69 +84,92 @@ export const BookingsManagement = () => {
         </Alert>
       )}
 
-      {/* Bookings Table */}
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Data</TableHead>
-            <TableHead>Orario</TableHead>
-            <TableHead>Utente</TableHead>
-            <TableHead>Illuminazione</TableHead>
-            <TableHead>Prezzo</TableHead>
-            <TableHead>Stato</TableHead>
-            <TableHead>Azioni</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filteredBookings.map((booking) => (
-            <TableRow key={booking.id}>
-              <TableCell>
-                {new Date(booking.date).toLocaleDateString("it-IT", {
-                  weekday: "long",
-                  day: "numeric",
-                  month: "long",
-                })}
-              </TableCell>
-              <TableCell>
-                {booking.startTime} - {booking.endTime}
-              </TableCell>
-              <TableCell>{booking.userName}</TableCell>
-              <TableCell>
-                {booking.needsLight ? (
-                  <Sun className="w-4 h-4 text-yellow-500" />
-                ) : (
-                  "No"
-                )}
-              </TableCell>
-              <TableCell>€{calculatePrice(booking).toFixed(2)}</TableCell>
-              <TableCell>
-                <span
-                  className={`px-2 py-1 rounded-full text-xs ${
-                    booking.status === "ACTIVE"
-                      ? "bg-green-100 text-green-800"
-                      : booking.status === "CANCELLED"
-                      ? "bg-red-100 text-red-800"
-                      : "bg-blue-100 text-blue-800"
-                  }`}
-                >
-                  {booking.status}
-                </span>
-              </TableCell>
-              <TableCell>
-                {booking.status === "ACTIVE" && (
+      {/* Tabella prenotazioni */}
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Data</TableHead>
+              <TableHead>Orario</TableHead>
+              <TableHead>Utente</TableHead>
+              <TableHead>Illuminazione</TableHead>
+              <TableHead>Azioni</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {currentItems.map((booking) => (
+              <TableRow key={booking.id}>
+                <TableCell>
+                  {new Date(booking.date).toLocaleDateString("it-IT", {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long"
+                  })}
+                </TableCell>
+                <TableCell>{booking.startTime} - {booking.endTime}</TableCell>
+                <TableCell>{booking.userName}</TableCell>
+                <TableCell>{booking.needsLight ? "Sì" : "No"}</TableCell>
+                <TableCell>
                   <Button
                     variant="destructive"
                     size="sm"
-                    onClick={() => handleCancelBooking(booking.id)}
+                    disabled={deletingId === booking.id}
+                    onClick={() => handleDelete(booking.id)}
                   >
-                    Cancella
+                    {deletingId === booking.id ? "Cancellazione..." : "Cancella"}
                   </Button>
-                )}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Paginazione */}
+      {bookings.length > 0 && (
+        <div className="flex items-center justify-between px-2">
+          <div className="text-sm text-gray-500">
+            Mostrando {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, bookings.length)} di {bookings.length} prenotazioni
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+            >
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => prev - 1)}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-sm font-medium">
+              Pagina {currentPage} di {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => prev + 1)}
+              disabled={currentPage === totalPages}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+            >
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

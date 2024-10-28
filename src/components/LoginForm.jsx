@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { LogIn, UserPlus } from "lucide-react";
 import {
   Card,
@@ -10,18 +11,22 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Alert, AlertDescription } from "../components/ui/alert";
 
-export const LoginForm = ({ onLogin, onSignUpClick, error }) => {
+export const LoginForm = ({ onLogin }) => {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
     setIsLoading(true);
+
     try {
       await onLogin(email, password);
     } catch (error) {
-      console.error(error);
+      setError(error.message);
     } finally {
       setIsLoading(false);
     }
@@ -76,12 +81,22 @@ export const LoginForm = ({ onLogin, onSignUpClick, error }) => {
                 type="button"
                 variant="outline"
                 className="w-full flex items-center gap-2 justify-center"
-                onClick={onSignUpClick}
+                onClick={() => navigate("/signup")}
                 disabled={isLoading}
               >
                 <UserPlus className="w-4 h-4" />
                 Registrati
               </Button>
+
+              <div className="text-center pt-2">
+                <Button
+                  variant="link"
+                  className="text-sm text-blue-600 hover:text-blue-800"
+                  onClick={() => navigate("/reset-password")}
+                >
+                  Password dimenticata?
+                </Button>
+              </div>
             </div>
           </form>
         </CardContent>

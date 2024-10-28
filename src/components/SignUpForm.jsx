@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { UserPlus, ArrowLeft } from "lucide-react";
 import {
   Card,
@@ -11,7 +12,8 @@ import { Input } from "../components/ui/input";
 import { Alert, AlertDescription } from "../components/ui/alert";
 import GDPRConsent from "./GDPRConsent";
 
-export const SignUpForm = ({ onSignUp, onBackToLogin, error }) => {
+export const SignUpForm = ({ onSignUp }) => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -80,12 +82,15 @@ export const SignUpForm = ({ onSignUp, onBackToLogin, error }) => {
     try {
       await onSignUp({
         ...formData,
-        status: "PENDING",
-        role: "USER",
         gdprConsents: {
-          ...consents,
+          terms: consents.terms,
+          privacy: consents.privacy,
           acceptedAt: new Date().toISOString(),
         },
+      });
+      // Redirect to verification page
+      navigate("/verify-email", {
+        state: { email: formData.email },
       });
     } catch (error) {
       setValidationError(error.message);
@@ -182,9 +187,9 @@ export const SignUpForm = ({ onSignUp, onBackToLogin, error }) => {
               className="mt-6"
             />
 
-            {(validationError || error) && (
+            {validationError && (
               <Alert variant="destructive">
-                <AlertDescription>{validationError || error}</AlertDescription>
+                <AlertDescription>{validationError}</AlertDescription>
               </Alert>
             )}
 
@@ -202,7 +207,7 @@ export const SignUpForm = ({ onSignUp, onBackToLogin, error }) => {
                 type="button"
                 variant="outline"
                 className="w-full flex items-center gap-2 justify-center"
-                onClick={onBackToLogin}
+                onClick={() => navigate("/login")}
                 disabled={isLoading}
               >
                 <ArrowLeft className="w-4 h-4" />

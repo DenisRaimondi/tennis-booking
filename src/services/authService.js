@@ -7,6 +7,7 @@ import {
   updatePassword,
   EmailAuthProvider,
   reauthenticateWithCredential,
+  applyActionCode,
 } from "firebase/auth";
 import {
   doc,
@@ -16,6 +17,7 @@ import {
   collection,
   query,
   getDocs,
+  where,
 } from "firebase/firestore";
 import { auth, db } from "../config/firebase";
 
@@ -46,7 +48,7 @@ class AuthService {
       });
 
       // Invia email di verifica
-      await sendEmailVerification(userCredential.user);
+      await this.sendVerificationEmail(userCredential.user);
 
       return userCredential.user;
     } catch (error) {
@@ -117,10 +119,52 @@ class AuthService {
     }
   }
 
+  async sendVerificationEmail(user = null) {
+    try {
+      const currentUser = user || auth.currentUser;
+      if (!currentUser) {
+        throw new Error("Nessun utente autenticato");
+      }
+      await sendEmailVerification(currentUser);
+    } catch (error) {
+      console.error("Send verification email error:", error);
+      throw this.handleError(error);
+    }
+  }
+
+  async verifyEmail(oobCode) {
+    try {
+      if (!oobCode) {
+        throw new Error("Codice di verifica mancante");
+      }
+      await applyActionCode(auth, oobCode);
+    } catch (error) {
+      console.error("Email verification error:", error);
+      throw this.handleError(error);
+    }
+  }
+
   async updateUserProfile(userId, userData) {
     try {
+      // Aggiorna il profilo utente
       const userRef = doc(db, "users", userId);
       await updateDoc(userRef, userData);
+
+      // Se il nome è stato modificato, aggiorna anche le prenotazioni
+      if (userData.name) {
+        const bookingsRef = collection(db, "bookings");
+        const bookingsQuery = query(bookingsRef, where("userId", "==", userId));
+        const bookingsSnapshot = await getDocs(bookingsQuery);
+
+        const updatePromises = bookingsSnapshot.docs.map((doc) =>
+          updateDoc(doc.ref, {
+            userName: userData.name,
+          })
+        );
+
+        await Promise.all(updatePromises);
+      }
+
       return userData;
     } catch (error) {
       console.error("Update profile error:", error);
@@ -157,16 +201,6 @@ class AuthService {
     }
   }
 
-  async verifyEmail(oobCode) {
-    try {
-      await this.auth.applyActionCode(oobCode);
-    } catch (error) {
-      console.error("Email verification error:", error);
-      throw this.handleError(error);
-    }
-  }
-
-  // Metodi Admin
   async getAllUsers() {
     try {
       const usersRef = collection(db, "users");
@@ -205,6 +239,18 @@ class AuthService {
     }
   }
 
+  hasPermission(user, requiredPermission) {
+    if (!user) return false;
+
+    // Se richiediamo SUPER_USER, verifichiamo il ruolo
+    if (requiredPermission === "SUPER_USER") {
+      return user.role === "SUPER_USER";
+    }
+
+    // Per tutte le altre rotte, verifichiamo che l'utente sia attivo
+    return user.status === "ACTIVE";
+  }
+
   handleError(error) {
     let message = "Si è verificato un errore";
 
@@ -229,6 +275,12 @@ class AuthService {
         break;
       case "auth/wrong-password":
         message = "Password non corretta";
+        break;
+      case "auth/invalid-action-code":
+        message = "Codice di verifica non valido o scaduto";
+        break;
+      case "auth/expired-action-code":
+        message = "Codice di verifica scaduto";
         break;
       default:
         message = error.message || "Si è verificato un errore";
