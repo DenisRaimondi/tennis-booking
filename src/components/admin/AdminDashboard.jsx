@@ -1,8 +1,6 @@
 import React from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../ui/tabs";
 import { UserManagement } from "./UserManagement";
-
-import { RevenueReport } from "./RevenueReport";
 import { BookingsManagement } from "./BookingsManagement";
 
 export const AdminDashboard = ({ currentUser }) => {
@@ -24,7 +22,6 @@ export const AdminDashboard = ({ currentUser }) => {
         <TabsList>
           <TabsTrigger value="users">Gestione Utenti</TabsTrigger>
           <TabsTrigger value="bookings">Prenotazioni</TabsTrigger>
-          <TabsTrigger value="revenue">Report Entrate</TabsTrigger>
         </TabsList>
 
         <TabsContent value="users">
@@ -33,10 +30,6 @@ export const AdminDashboard = ({ currentUser }) => {
 
         <TabsContent value="bookings">
           <BookingsManagement />
-        </TabsContent>
-
-        <TabsContent value="revenue">
-          <RevenueReport />
         </TabsContent>
       </Tabs>
     </div>
