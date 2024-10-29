@@ -3,7 +3,7 @@ name: Firebase Deploy
 on:
   push:
     branches:
-      - master # o master, a seconda del tuo branch principale
+      - master # o master, a seconda del tuo branch
 
 jobs:
   build_and_deploy:
@@ -32,6 +32,6 @@ jobs:
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TENNIS_BOOKING_20676 }}
           channelId: live
           projectId: ${{ secrets.REACT_APP_FIREBASE_PROJECT_ID }}
