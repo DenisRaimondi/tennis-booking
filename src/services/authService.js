@@ -8,7 +8,7 @@ import {
   reauthenticateWithCredential,
   updatePassword,
   applyActionCode,
-  sendPasswordResetEmail 
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import {
   doc,
@@ -23,8 +23,6 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../config/firebase";
 import { UserRoles, UserStatus } from "../models/User";
-
-
 
 class AuthService {
   // Ottiene l'utente corrente con i dati aggiuntivi da Firestore
@@ -54,7 +52,11 @@ class AuthService {
       const { email, password, name, phone, gdprConsents } = userData;
 
       // Crea l'utente in Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
       const user = userCredential.user;
 
       // Crea il documento utente in Firestore
@@ -87,11 +89,47 @@ class AuthService {
         console.error("Error sending password reset email: ", error);
       });
   }
+  async signUp({ email, password, name, phone, gdprConsents, status, role }) {
+    try {
+      // Crea l'utente in Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+      const user = userCredential.user;
 
+      // Invia email di verifica
+      await sendEmailVerification(user);
+
+      // Crea il documento utente in Firestore
+      await setDoc(doc(db, "users", user.uid), {
+        name,
+        email,
+        phone,
+        gdprConsents,
+        status,
+        role,
+        createdAt: new Date().toISOString(),
+      });
+
+      return user;
+    } catch (error) {
+      console.error("Error in signUp:", error);
+      if (error.code === "auth/email-already-in-use") {
+        throw new Error("Email già registrata");
+      }
+      throw new Error("Errore durante la registrazione");
+    }
+  }
   // Login
   async login(email, password) {
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
       const user = userCredential.user;
 
       // Verifica lo stato dell'utente
@@ -156,7 +194,7 @@ class AuthService {
       }
 
       const userRef = doc(db, "users", userId);
-      
+
       // Verifica se il documento esiste
       const userDoc = await getDoc(userRef);
       if (!userDoc.exists()) {
@@ -184,11 +222,14 @@ class AuthService {
         throw new Error("Nessun utente autenticato");
       }
 
-      const credential = EmailAuthProvider.credential(user.email, currentPassword);
-      
+      const credential = EmailAuthProvider.credential(
+        user.email,
+        currentPassword
+      );
+
       // Riautentica l'utente
       await reauthenticateWithCredential(user, credential);
-      
+
       // Aggiorna la password
       await updatePassword(user, newPassword);
     } catch (error) {
@@ -217,14 +258,14 @@ class AuthService {
         where("userId", "==", userId)
       );
       const bookingsSnapshot = await getDocs(bookingsQuery);
-      const deleteBookingsPromises = bookingsSnapshot.docs.map(doc => 
+      const deleteBookingsPromises = bookingsSnapshot.docs.map((doc) =>
         deleteDoc(doc.ref)
       );
       await Promise.all(deleteBookingsPromises);
 
       // Elimina il documento utente
       await deleteDoc(doc(db, "users", userId));
-      
+
       // Elimina l'account Firebase
       await deleteUser(user);
 
@@ -239,9 +280,9 @@ class AuthService {
   async getAllUsers() {
     try {
       const usersSnapshot = await getDocs(collection(db, "users"));
-      return usersSnapshot.docs.map(doc => ({
+      return usersSnapshot.docs.map((doc) => ({
         uid: doc.id,
-        ...doc.data()
+        ...doc.data(),
       }));
     } catch (error) {
       console.error("Error getting users:", error);
@@ -257,7 +298,7 @@ class AuthService {
       }
 
       const userRef = doc(db, "users", userId);
-      
+
       // Verifica se l'utente esiste
       const userDoc = await getDoc(userRef);
       if (!userDoc.exists()) {
@@ -266,7 +307,7 @@ class AuthService {
 
       await updateDoc(userRef, {
         status: UserStatus.ACTIVE,
-        approvedAt: new Date().toISOString()
+        approvedAt: new Date().toISOString(),
       });
     } catch (error) {
       console.error("Error approving user:", error);
@@ -282,7 +323,7 @@ class AuthService {
       }
 
       const userRef = doc(db, "users", userId);
-      
+
       // Verifica se l'utente esiste
       const userDoc = await getDoc(userRef);
       if (!userDoc.exists()) {
@@ -291,7 +332,7 @@ class AuthService {
 
       await updateDoc(userRef, {
         status: UserStatus.DISABLED,
-        disabledAt: new Date().toISOString()
+        disabledAt: new Date().toISOString(),
       });
     } catch (error) {
       console.error("Error disabling user:", error);
@@ -302,10 +343,10 @@ class AuthService {
   // Verifica permessi utente
   hasPermission(user, permission) {
     // Debug
-    console.log('Checking Permission:', {
+    console.log("Checking Permission:", {
       user,
       permission,
-      userRole: user?.role
+      userRole: user?.role,
     });
 
     // Gestione speciale per SUPER_USER
@@ -331,9 +372,9 @@ class AuthService {
         "VIEW_REPORTS",
         "MANAGE_BOOKINGS",
         "ACCESS_ADMIN",
-        "SUPER_USER"
+        "SUPER_USER",
       ],
-      [UserRoles.USER]: ["CREATE_BOOKING", "VIEW_OWN_BOOKINGS"]
+      [UserRoles.USER]: ["CREATE_BOOKING", "VIEW_OWN_BOOKINGS"],
     };
 
     return rolePermissions[role] || [];
@@ -342,7 +383,7 @@ class AuthService {
   // Gestione errori Firebase Auth
   handleAuthError(error) {
     let message = "Si è verificato un errore. Riprova più tardi.";
-    
+
     switch (error.code) {
       case "auth/email-already-in-use":
         message = "Questa email è già registrata";
@@ -366,7 +407,8 @@ class AuthService {
         message = "Password non corretta";
         break;
       case "auth/requires-recent-login":
-        message = "Per motivi di sicurezza, effettua nuovamente il login prima di questa operazione";
+        message =
+          "Per motivi di sicurezza, effettua nuovamente il login prima di questa operazione";
         break;
       case "auth/invalid-credential":
         message = "Credenziali non valide";

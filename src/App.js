@@ -1,15 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate  } from 'react-router-dom';
-import { Navbar } from './components/Navbar';
-import { UserProfile } from './components/UserProfile';
-import TennisBookingSystem from './components/TennisBookingSystem';
-import { LoginForm } from './components/LoginForm';
-import { SignUpForm } from './components/SignUpForm';
-import { AdminDashboard } from './components/admin/AdminDashboard';
-import { EmailVerification } from './components/EmailVerification';
-import { ProtectedRoute } from './components/ProtectedRoutes';
-import AuthService from './services/authService';
-
+import React, { useState, useEffect } from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useNavigate,
+} from "react-router-dom";
+import { Navbar } from "./components/Navbar";
+import { UserProfile } from "./components/UserProfile";
+import TennisBookingSystem from "./components/TennisBookingSystem";
+import { LoginForm } from "./components/LoginForm";
+import { SignUpForm } from "./components/SignUpForm";
+import { AdminDashboard } from "./components/admin/AdminDashboard";
+import { EmailVerification } from "./components/EmailVerification";
+import { ProtectedRoute } from "./components/ProtectedRoutes";
+import AuthService from "./services/authService";
 
 // Componente separato per la gestione del login
 const LoginRoute = ({ currentUser, onLogin, error }) => {
@@ -20,28 +25,27 @@ const LoginRoute = ({ currentUser, onLogin, error }) => {
   }
 
   return (
-    <LoginForm 
-      onLogin={onLogin} 
+    <LoginForm
+      onLogin={onLogin}
       onSignUpClick={() => navigate("/signup")}
       error={error}
     />
   );
 };
 
-
 const App = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [showSignUp, setShowSignUp] = useState(false);
-  
+
   useEffect(() => {
     const initializeAuth = async () => {
       try {
         const user = await AuthService.getCurrentUser();
         setCurrentUser(user);
       } catch (error) {
-        console.error('Error initializing auth:', error);
+        console.error("Error initializing auth:", error);
         setError(error.message);
       } finally {
         setLoading(false);
@@ -57,7 +61,7 @@ const App = () => {
       setCurrentUser(user);
       return user;
     } catch (error) {
-      console.error('Login error:', error);
+      console.error("Login error:", error);
       throw error;
     }
   };
@@ -67,15 +71,15 @@ const App = () => {
       await AuthService.logout();
       setCurrentUser(null);
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error("Logout error:", error);
       throw error;
     }
   };
 
   const handleUserUpdate = (updatedUser) => {
-    setCurrentUser(prevUser => ({
+    setCurrentUser((prevUser) => ({
       ...prevUser,
-      ...updatedUser
+      ...updatedUser,
     }));
   };
 
@@ -103,12 +107,12 @@ const App = () => {
   return (
     <Router>
       {currentUser && <Navbar user={currentUser} onLogout={handleLogout} />}
-      
+
       <Routes>
         <Route
           path="/login"
           element={
-            <LoginRoute 
+            <LoginRoute
               currentUser={currentUser}
               onLogin={handleLogin}
               error={error}
@@ -118,8 +122,17 @@ const App = () => {
 
         <Route
           path="/signup"
-          element={currentUser ? <Navigate to="/" /> : <SignUpForm />}
-          onSignUp={handleSignUp}
+          element={
+            currentUser ? (
+              <Navigate to="/" />
+            ) : (
+              <SignUpForm
+                onSignUp={handleSignUp}
+                onBackToLogin={() => Navigate("/login")}
+                error={error}
+              />
+            )
+          }
         />
 
         <Route path="/verify-email" element={<EmailVerification />} />
@@ -128,8 +141,8 @@ const App = () => {
           path="/profile"
           element={
             <ProtectedRoute user={currentUser}>
-              <UserProfile 
-                currentUser={currentUser} 
+              <UserProfile
+                currentUser={currentUser}
                 onUserUpdate={handleUserUpdate}
                 onLogout={handleLogout}
               />
@@ -155,10 +168,7 @@ const App = () => {
           }
         />
 
-        <Route 
-          path="*" 
-          element={<Navigate to="/" replace />} 
-        />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );
