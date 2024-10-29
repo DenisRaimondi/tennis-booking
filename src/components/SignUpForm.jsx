@@ -12,7 +12,7 @@ import { Input } from "../components/ui/input";
 import { Alert, AlertDescription } from "../components/ui/alert";
 import GDPRConsent from "./GDPRConsent";
 
-export const SignUpForm = ({ onSignUp }) => {
+export const SignUpForm = ({ onSignUp, onBackToLogin, error }) => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: "",
@@ -79,6 +79,8 @@ export const SignUpForm = ({ onSignUp }) => {
     if (!validateForm()) return;
 
     setIsLoading(true);
+    setValidationError(""); // Reset any previous error
+
     try {
       await onSignUp({
         ...formData,
@@ -87,13 +89,16 @@ export const SignUpForm = ({ onSignUp }) => {
           privacy: consents.privacy,
           acceptedAt: new Date().toISOString(),
         },
-      });
-      // Redirect to verification page
-      navigate("/verify-email", {
-        state: { email: formData.email },
+        status: "PENDING",
+        role: "USER",
       });
     } catch (error) {
-      setValidationError(error.message);
+      // Gestione specifica degli errori di Firebase
+      if (error.code === "auth/email-already-in-use") {
+        setValidationError("Email già registrata");
+      } else {
+        setValidationError(error.message || "Errore durante la registrazione");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -143,6 +148,8 @@ export const SignUpForm = ({ onSignUp }) => {
                 value={formData.email}
                 onChange={handleChange}
                 className="w-full"
+                pattern="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+                title="Inserisci un indirizzo email valido, ad esempio: esempio@email.com"
                 required
               />
             </div>
@@ -154,8 +161,9 @@ export const SignUpForm = ({ onSignUp }) => {
                 value={formData.phone}
                 onChange={handleChange}
                 className="w-full"
+                pattern="^(\+39)?\s?3\d{2}\s?\d{6,7}$"
+                title="Inserisci un numero di telefono valido. Formato: +39 3XX XXX XXXX o 3XX XXX XXXX"
                 required
-                pattern="[0-9]{10}"
               />
             </div>
             <div>
@@ -177,6 +185,8 @@ export const SignUpForm = ({ onSignUp }) => {
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 className="w-full"
+                pattern="^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$" // esempio di pattern
+                title="La password deve contenere almeno 8 caratteri, includere almeno una lettera e un numero"
                 required
               />
             </div>
@@ -187,9 +197,9 @@ export const SignUpForm = ({ onSignUp }) => {
               className="mt-6"
             />
 
-            {validationError && (
+            {(validationError || error) && (
               <Alert variant="destructive">
-                <AlertDescription>{validationError}</AlertDescription>
+                <AlertDescription>{validationError || error}</AlertDescription>
               </Alert>
             )}
 
@@ -207,7 +217,7 @@ export const SignUpForm = ({ onSignUp }) => {
                 type="button"
                 variant="outline"
                 className="w-full flex items-center gap-2 justify-center"
-                onClick={() => navigate("/login")}
+                onClick={() => navigate("/login", { error: "" })}
                 disabled={isLoading}
               >
                 <ArrowLeft className="w-4 h-4" />

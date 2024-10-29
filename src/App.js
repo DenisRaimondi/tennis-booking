@@ -112,11 +112,7 @@ const App = () => {
         <Route
           path="/login"
           element={
-            <LoginRoute
-              currentUser={currentUser}
-              onLogin={handleLogin}
-              error={error}
-            />
+            <LoginRoute currentUser={currentUser} onLogin={handleLogin} />
           }
         />
 

@@ -252,15 +252,30 @@ class AuthService {
         await reauthenticateWithCredential(user, credential);
       }
 
-      // Elimina prenotazioni dell'utente
+      // Ottieni la data e ora corrente
+      const now = new Date();
+      const currentDate = now.toISOString().split("T")[0];
+      const currentTime = now.toTimeString().split(" ")[0].slice(0, 5);
+
+      // Elimina solo le prenotazioni future dell'utente
       const bookingsQuery = query(
         collection(db, "bookings"),
-        where("userId", "==", userId)
+        where("userId", "==", userId),
+        where("date", ">=", currentDate)
       );
+
       const bookingsSnapshot = await getDocs(bookingsQuery);
-      const deleteBookingsPromises = bookingsSnapshot.docs.map((doc) =>
-        deleteDoc(doc.ref)
-      );
+      const deleteBookingsPromises = bookingsSnapshot.docs
+        .filter((doc) => {
+          const booking = doc.data();
+          // Se la prenotazione è di oggi, controlla anche l'ora
+          if (booking.date === currentDate) {
+            return booking.startTime > currentTime;
+          }
+          return true; // Mantieni tutte le prenotazioni future
+        })
+        .map((doc) => deleteDoc(doc.ref));
+
       await Promise.all(deleteBookingsPromises);
 
       // Elimina il documento utente
