@@ -8,6 +8,7 @@ import {
   reauthenticateWithCredential,
   updatePassword,
   applyActionCode,
+  sendPasswordResetEmail 
 } from "firebase/auth";
 import {
   doc,
@@ -22,6 +23,8 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../config/firebase";
 import { UserRoles, UserStatus } from "../models/User";
+
+
 
 class AuthService {
   // Ottiene l'utente corrente con i dati aggiuntivi da Firestore
@@ -73,6 +76,16 @@ class AuthService {
       console.error("Error in registration:", error);
       throw this.handleAuthError(error);
     }
+  }
+
+  sendPasswordResetEmail(email) {
+    return sendPasswordResetEmail(auth, email)
+      .then(() => {
+        console.log("Password reset email sent!");
+      })
+      .catch((error) => {
+        console.error("Error sending password reset email: ", error);
+      });
   }
 
   // Login

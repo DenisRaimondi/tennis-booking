@@ -10,6 +10,7 @@ import { EmailVerification } from './components/EmailVerification';
 import { ProtectedRoute } from './components/ProtectedRoutes';
 import AuthService from './services/authService';
 
+
 // Componente separato per la gestione del login
 const LoginRoute = ({ currentUser, onLogin, error }) => {
   const navigate = useNavigate();
@@ -27,11 +28,13 @@ const LoginRoute = ({ currentUser, onLogin, error }) => {
   );
 };
 
+
 const App = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-
+  const [showSignUp, setShowSignUp] = useState(false);
+  
   useEffect(() => {
     const initializeAuth = async () => {
       try {
@@ -76,6 +79,19 @@ const App = () => {
     }));
   };
 
+  const handleSignUp = async (userData) => {
+    try {
+      setError("");
+      await AuthService.register(userData);
+      setShowSignUp(false);
+      setError(
+        "Registrazione completata! Verifica la tua email per procedere."
+      );
+    } catch (error) {
+      setError(error.message);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -103,6 +119,7 @@ const App = () => {
         <Route
           path="/signup"
           element={currentUser ? <Navigate to="/" /> : <SignUpForm />}
+          onSignUp={handleSignUp}
         />
 
         <Route path="/verify-email" element={<EmailVerification />} />
