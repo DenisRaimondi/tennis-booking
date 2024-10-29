@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { UserPlus, ArrowLeft } from "lucide-react";
 import {
@@ -23,12 +23,17 @@ export const SignUpForm = ({ onSignUp, onBackToLogin, error }) => {
   });
 
   const [consents, setConsents] = useState({
-    terms: false,
     privacy: false,
   });
 
   const [isLoading, setIsLoading] = useState(false);
   const [validationError, setValidationError] = useState("");
+
+  useEffect(() => {
+    return () => {
+      setValidationError("");
+    };
+  }, []);
 
   const validateForm = () => {
     if (
@@ -42,10 +47,8 @@ export const SignUpForm = ({ onSignUp, onBackToLogin, error }) => {
       return false;
     }
 
-    if (!consents.terms || !consents.privacy) {
-      setValidationError(
-        "È necessario accettare i termini e l'informativa sulla privacy"
-      );
+    if (!consents.privacy) {
+      setValidationError("È necessario accettare l'informativa sulla privacy");
       return false;
     }
 
@@ -85,13 +88,14 @@ export const SignUpForm = ({ onSignUp, onBackToLogin, error }) => {
       await onSignUp({
         ...formData,
         gdprConsents: {
-          terms: consents.terms,
           privacy: consents.privacy,
           acceptedAt: new Date().toISOString(),
         },
         status: "PENDING",
         role: "USER",
       });
+
+      navigate("/verify-email");
     } catch (error) {
       // Gestione specifica degli errori di Firebase
       if (error.code === "auth/email-already-in-use") {
@@ -204,8 +208,14 @@ export const SignUpForm = ({ onSignUp, onBackToLogin, error }) => {
             )}
 
             <div className="text-sm text-gray-500">
-              Dopo la registrazione, il tuo account dovrà essere approvato da un
-              amministratore prima di poter essere utilizzato.
+              Dopo la registrazione:
+              <ul>
+                <li>Dovrai effettuare il processo di verifica tramite mail</li>
+                <li>
+                  Il tuo account dovrà essere approvato da un amministratore
+                  prima di poter essere utilizzato.
+                </li>
+              </ul>
             </div>
 
             <div className="space-y-2">

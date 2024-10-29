@@ -15,6 +15,7 @@ import { AdminDashboard } from "./components/admin/AdminDashboard";
 import { EmailVerification } from "./components/EmailVerification";
 import { ProtectedRoute } from "./components/ProtectedRoutes";
 import AuthService from "./services/authService";
+import { sendEmailVerification } from "firebase/auth";
 
 // Componente separato per la gestione del login
 const LoginRoute = ({ currentUser, onLogin, error }) => {
@@ -58,6 +59,13 @@ const App = () => {
   const handleLogin = async (email, password) => {
     try {
       const user = await AuthService.login(email, password);
+      if (!user.emailVerified) {
+        await sendEmailVerification(user);
+
+        throw new Error(
+          "Email non verificata. Controlla l'email e continua con la procedura di verifica"
+        );
+      }
       setCurrentUser(user);
       return user;
     } catch (error) {
@@ -92,7 +100,8 @@ const App = () => {
         "Registrazione completata! Verifica la tua email per procedere."
       );
     } catch (error) {
-      setError(error.message);
+      // Non propaghiamo l'errore, lasciamo che sia il SignUpForm a gestirlo
+      throw error; // Rilanciamo l'errore per farlo gestire al SignUpForm
     }
   };
 
@@ -125,7 +134,6 @@ const App = () => {
               <SignUpForm
                 onSignUp={handleSignUp}
                 onBackToLogin={() => Navigate("/login")}
-                error={error}
               />
             )
           }

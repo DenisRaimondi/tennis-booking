@@ -115,10 +115,6 @@ export const BookingsList = ({
           </TableBody>
         </Table>
       </div>
-
-      <div className="text-sm text-gray-500 mt-2">
-        * Le prenotazioni evidenziate in blu sono le tue
-      </div>
     </div>
   );
 };

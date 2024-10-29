@@ -43,22 +43,6 @@ const GDPRConsent = ({ consents, onChange, className }) => {
             <div className="space-y-3">
               <div className="flex items-start space-x-3">
                 <Checkbox
-                  id="terms"
-                  checked={consents.terms}
-                  onCheckedChange={() => handleConsentChange("terms")}
-                  required
-                />
-                <label
-                  htmlFor="terms"
-                  className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Accetto i termini e le condizioni del servizio{" "}
-                  <span className="text-red-500">*</span>
-                </label>
-              </div>
-
-              <div className="flex items-start space-x-3">
-                <Checkbox
                   id="privacy"
                   checked={consents.privacy}
                   onCheckedChange={() => handleConsentChange("privacy")}

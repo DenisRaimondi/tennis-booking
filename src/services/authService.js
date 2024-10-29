@@ -20,6 +20,8 @@ import {
   query,
   where,
   getDocs,
+  getDocFromServer,
+  limit,
 } from "firebase/firestore";
 import { auth, db } from "../config/firebase";
 import { UserRoles, UserStatus } from "../models/User";
@@ -71,7 +73,7 @@ class AuthService {
       });
 
       // Invia email di verifica
-      await sendEmailVerification(user);
+      let p = await sendEmailVerification(user);
 
       return user;
     } catch (error) {
@@ -138,19 +140,30 @@ class AuthService {
         throw new Error("Utente non trovato");
       }
 
+      if (!user.emailVerified) {
+        await sendEmailVerification(user);
+        await signOut(auth);
+        throw new Error(
+          "Email non verificata. Controllare email per effettuare il processo di verifica"
+        );
+      }
+
       const userData = userDoc.data();
 
       if (userData.status === UserStatus.PENDING) {
         await signOut(auth);
+
         throw new Error(
-          "Il tuo account è in attesa di approvazione. Riceverai una email quando sarà attivato."
+          `Il tuo account è in attesa di approvazione. Contatta l'amministratore del sito web.`
         );
       }
 
       if (userData.status === UserStatus.DISABLED) {
         await signOut(auth);
+
+        const adminEmail = await this.findAdminEmail();
         throw new Error(
-          "Il tuo account è stato disabilitato. Contatta l'amministratore."
+          `Il tuo account è stato disabilitato. Contatta l'amministratore del sito web.`
         );
       }
 
@@ -166,6 +179,7 @@ class AuthService {
     }
   }
 
+  
   // Logout
   async logout() {
     try {
