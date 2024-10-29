@@ -1,16 +1,31 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Alert, AlertDescription } from "./ui/alert";
-import { User, Phone, Mail, Lock } from "lucide-react";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
+import { User, Phone, Mail, Lock, Trash2 } from "lucide-react";
 import AuthService from "../services/authService";
 
-export const UserProfile = ({ currentUser, onUserUpdate }) => {
+export const UserProfile = ({ currentUser, onUserUpdate, onLogout }) => {
+  const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deletionError, setDeletionError] = useState("");
 
   const [formData, setFormData] = useState({
     name: currentUser?.name || "",
@@ -21,7 +36,7 @@ export const UserProfile = ({ currentUser, onUserUpdate }) => {
   });
 
   useEffect(() => {
-    setFormData((prev) => ({
+    setFormData(prev => ({
       ...prev,
       name: currentUser?.name || "",
       phone: currentUser?.phone || "",
@@ -38,6 +53,35 @@ export const UserProfile = ({ currentUser, onUserUpdate }) => {
     setSuccess("");
   };
 
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmation !== currentUser.email) {
+      setDeletionError("L'email inserita non corrisponde");
+      return;
+    }
+
+    setLoading(true);
+    setDeletionError("");
+
+    try {
+      // Elimina l'account
+      await AuthService.deleteAccount(currentUser.uid);
+      
+      // Esegui il logout
+      if (onLogout) {
+        await onLogout();
+      }
+      
+      // Reindirizza al login
+      navigate("/login", { 
+        replace: true,
+        state: { message: "Account eliminato con successo" }
+      });
+    } catch (error) {
+      setDeletionError(error.message);
+      setLoading(false);
+    }
+  };
+
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
     if (!isEditing) return;
@@ -50,27 +94,21 @@ export const UserProfile = ({ currentUser, onUserUpdate }) => {
       let hasChanges = false;
       let updatedUserData = null;
 
-      // Verifica se ci sono modifiche ai dati del profilo
-      if (
-        formData.name !== currentUser.name ||
-        formData.phone !== currentUser.phone
-      ) {
+      if (formData.name !== currentUser.name || formData.phone !== currentUser.phone) {
         updatedUserData = await AuthService.updateUserProfile(currentUser.uid, {
           name: formData.name,
           phone: formData.phone,
         });
         hasChanges = true;
 
-        // Aggiorna lo stato globale dell'utente
         if (updatedUserData && onUserUpdate) {
           onUserUpdate({
             ...currentUser,
-            ...updatedUserData,
+            ...updatedUserData
           });
         }
       }
 
-      // Verifica se è necessario aggiornare la password
       if (formData.newPassword) {
         if (formData.newPassword !== formData.confirmPassword) {
           throw new Error("Le password non coincidono");
@@ -78,20 +116,16 @@ export const UserProfile = ({ currentUser, onUserUpdate }) => {
         if (!formData.currentPassword) {
           throw new Error("Inserisci la password attuale");
         }
-        await AuthService.changePassword(
-          formData.currentPassword,
-          formData.newPassword
-        );
+        await AuthService.changePassword(formData.currentPassword, formData.newPassword);
         hasChanges = true;
       }
 
       if (hasChanges) {
         setSuccess("Profilo aggiornato con successo");
         setIsEditing(false);
-
-        // Aggiorna il form con i nuovi dati
+        
         if (updatedUserData) {
-          setFormData((prev) => ({
+          setFormData(prev => ({
             ...prev,
             name: updatedUserData.name || prev.name,
             phone: updatedUserData.phone || prev.phone,
@@ -100,8 +134,7 @@ export const UserProfile = ({ currentUser, onUserUpdate }) => {
             confirmPassword: "",
           }));
         } else {
-          // Reset solo dei campi password
-          setFormData((prev) => ({
+          setFormData(prev => ({
             ...prev,
             currentPassword: "",
             newPassword: "",
@@ -246,13 +279,24 @@ export const UserProfile = ({ currentUser, onUserUpdate }) => {
 
             <div className="flex gap-4">
               {!isEditing ? (
-                <Button
-                  type="button"
-                  onClick={handleStartEditing}
-                  className="w-full"
-                >
-                  Modifica Profilo
-                </Button>
+                <div className="flex gap-4 w-full">
+                  <Button
+                    type="button"
+                    onClick={handleStartEditing}
+                    className="flex-1"
+                  >
+                    Modifica Profilo
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => setShowDeleteDialog(true)}
+                    className="flex items-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Elimina Account
+                  </Button>
+                </div>
               ) : (
                 <>
                   <Button type="submit" disabled={loading} className="w-full">
@@ -272,6 +316,64 @@ export const UserProfile = ({ currentUser, onUserUpdate }) => {
           </form>
         </CardContent>
       </Card>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sei sicuro di voler eliminare il tuo account?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>Questa azione è irreversibile. Tutti i tuoi dati verranno eliminati permanentemente, incluse:</p>
+              <ul className="list-disc pl-4">
+                <li>Le tue informazioni personali</li>
+                <li>Tutte le tue prenotazioni</li>
+                <li>Cronologia e preferenze</li>
+              </ul>
+              <p className="font-medium mt-4">
+                Per confermare, inserisci la tua email: {currentUser?.email}
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          
+          <div className="my-4">
+            <Input
+              type="email"
+              value={deleteConfirmation}
+              onChange={(e) => setDeleteConfirmation(e.target.value)}
+              placeholder="Inserisci la tua email per confermare"
+              className="w-full"
+            />
+            
+            {deletionError && (
+              <p className="text-sm text-red-500 mt-2">{deletionError}</p>
+            )}
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              onClick={() => {
+                setDeleteConfirmation("");
+                setDeletionError("");
+              }}
+            >
+              Annulla
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteAccount}
+              className="bg-red-500 hover:bg-red-600"
+              disabled={loading}
+            >
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Eliminazione in corso...
+                </span>
+              ) : (
+                "Elimina Account"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

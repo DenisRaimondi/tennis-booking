@@ -1,12 +1,12 @@
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  signOut,
   sendEmailVerification,
-  sendPasswordResetEmail,
-  updatePassword,
+  signOut,
+  deleteUser,
   EmailAuthProvider,
   reauthenticateWithCredential,
+  updatePassword,
   applyActionCode,
 } from "firebase/auth";
 import {
@@ -14,249 +14,325 @@ import {
   setDoc,
   getDoc,
   updateDoc,
+  deleteDoc,
   collection,
   query,
-  getDocs,
   where,
+  getDocs,
 } from "firebase/firestore";
 import { auth, db } from "../config/firebase";
+import { UserRoles, UserStatus } from "../models/User";
 
 class AuthService {
-  async register(userData) {
+  // Ottiene l'utente corrente con i dati aggiuntivi da Firestore
+  async getCurrentUser() {
     try {
-      // Crea l'utente in Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        userData.email,
-        userData.password
-      );
+      const firebaseUser = auth.currentUser;
+      if (!firebaseUser) return null;
 
-      // Salva i dati addizionali in Firestore
-      const userRef = doc(db, "users", userCredential.user.uid);
-      await setDoc(userRef, {
-        name: userData.name,
-        email: userData.email,
-        phone: userData.phone,
-        role: "USER",
-        status: "PENDING",
-        createdAt: new Date().toISOString(),
-        gdpr: {
-          terms: userData.gdprConsents.terms,
-          privacy: userData.gdprConsents.privacy,
-          acceptedAt: userData.gdprConsents.acceptedAt,
-        },
-      });
+      const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+      if (!userDoc.exists()) return null;
 
-      // Invia email di verifica
-      await this.sendVerificationEmail(userCredential.user);
-
-      return userCredential.user;
+      return {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        emailVerified: firebaseUser.emailVerified,
+        ...userDoc.data(),
+      };
     } catch (error) {
-      console.error("Registration error:", error);
-      throw this.handleError(error);
+      console.error("Error getting current user:", error);
+      throw this.handleAuthError(error);
     }
   }
 
+  // Registrazione nuovo utente
+  async register(userData) {
+    try {
+      const { email, password, name, phone, gdprConsents } = userData;
+
+      // Crea l'utente in Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Crea il documento utente in Firestore
+      await setDoc(doc(db, "users", user.uid), {
+        name,
+        email,
+        phone,
+        role: UserRoles.USER,
+        status: UserStatus.PENDING,
+        gdprConsents,
+        createdAt: new Date().toISOString(),
+      });
+
+      // Invia email di verifica
+      await sendEmailVerification(user);
+
+      return user;
+    } catch (error) {
+      console.error("Error in registration:", error);
+      throw this.handleAuthError(error);
+    }
+  }
+
+  // Login
   async login(email, password) {
     try {
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
 
-      // Ottieni i dati aggiuntivi da Firestore
-      const userDoc = await getDoc(doc(db, "users", userCredential.user.uid));
-
+      // Verifica lo stato dell'utente
+      const userDoc = await getDoc(doc(db, "users", user.uid));
       if (!userDoc.exists()) {
-        throw new Error("Dati utente non trovati");
+        throw new Error("Utente non trovato");
       }
 
       const userData = userDoc.data();
 
-      // Verifica lo stato dell'utente
-      if (userData.status === "PENDING") {
-        throw new Error("Account in attesa di approvazione");
+      if (userData.status === UserStatus.PENDING) {
+        await signOut(auth);
+        throw new Error(
+          "Il tuo account è in attesa di approvazione. Riceverai una email quando sarà attivato."
+        );
       }
-      if (userData.status === "DISABLED") {
-        throw new Error("Account disabilitato");
+
+      if (userData.status === UserStatus.DISABLED) {
+        await signOut(auth);
+        throw new Error(
+          "Il tuo account è stato disabilitato. Contatta l'amministratore."
+        );
       }
 
       return {
-        ...userCredential.user,
+        uid: user.uid,
+        email: user.email,
+        emailVerified: user.emailVerified,
         ...userData,
       };
     } catch (error) {
-      console.error("Login error:", error);
-      throw this.handleError(error);
+      console.error("Error in login:", error);
+      throw this.handleAuthError(error);
     }
   }
 
+  // Logout
   async logout() {
     try {
       await signOut(auth);
     } catch (error) {
-      console.error("Logout error:", error);
-      throw this.handleError(error);
+      console.error("Error in logout:", error);
+      throw this.handleAuthError(error);
     }
   }
 
-  async getCurrentUser() {
+  // Verifica email
+  async verifyEmail(code) {
     try {
-      const user = auth.currentUser;
-      if (!user) return null;
-
-      const userDoc = await getDoc(doc(db, "users", user.uid));
-      if (!userDoc.exists()) return null;
-
-      return {
-        ...user,
-        ...userDoc.data(),
-      };
+      await applyActionCode(auth, code);
     } catch (error) {
-      console.error("Get current user error:", error);
-      throw this.handleError(error);
+      console.error("Error verifying email:", error);
+      throw this.handleAuthError(error);
     }
   }
 
-  async sendVerificationEmail(user = null) {
+  // Aggiorna profilo utente
+  async updateUserProfile(userId, data) {
     try {
-      const currentUser = user || auth.currentUser;
-      if (!currentUser) {
-        throw new Error("Nessun utente autenticato");
+      if (!userId) {
+        throw new Error("User ID is required");
       }
-      await sendEmailVerification(currentUser);
-    } catch (error) {
-      console.error("Send verification email error:", error);
-      throw this.handleError(error);
-    }
-  }
 
-  async verifyEmail(oobCode) {
-    try {
-      if (!oobCode) {
-        throw new Error("Codice di verifica mancante");
-      }
-      await applyActionCode(auth, oobCode);
-    } catch (error) {
-      console.error("Email verification error:", error);
-      throw this.handleError(error);
-    }
-  }
-
-  async updateUserProfile(userId, userData) {
-    try {
-      // Aggiorna il profilo utente
       const userRef = doc(db, "users", userId);
-      await updateDoc(userRef, userData);
-
-      // Se il nome è stato modificato, aggiorna anche le prenotazioni
-      if (userData.name) {
-        const bookingsRef = collection(db, "bookings");
-        const bookingsQuery = query(bookingsRef, where("userId", "==", userId));
-        const bookingsSnapshot = await getDocs(bookingsQuery);
-
-        const updatePromises = bookingsSnapshot.docs.map((doc) =>
-          updateDoc(doc.ref, {
-            userName: userData.name,
-          })
-        );
-
-        await Promise.all(updatePromises);
+      
+      // Verifica se il documento esiste
+      const userDoc = await getDoc(userRef);
+      if (!userDoc.exists()) {
+        throw new Error("Utente non trovato");
       }
 
-      return userData;
+      await updateDoc(userRef, {
+        ...data,
+        updatedAt: new Date().toISOString(),
+      });
+
+      const updatedDoc = await getDoc(userRef);
+      return updatedDoc.data();
     } catch (error) {
-      console.error("Update profile error:", error);
-      throw this.handleError(error);
+      console.error("Error updating profile:", error);
+      throw this.handleAuthError(error);
     }
   }
 
+  // Cambio password
   async changePassword(currentPassword, newPassword) {
     try {
       const user = auth.currentUser;
-      if (!user || !user.email) throw new Error("Nessun utente autenticato");
+      if (!user) {
+        throw new Error("Nessun utente autenticato");
+      }
 
+      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      
       // Riautentica l'utente
-      const credential = EmailAuthProvider.credential(
-        user.email,
-        currentPassword
-      );
       await reauthenticateWithCredential(user, credential);
-
-      // Cambia la password
+      
+      // Aggiorna la password
       await updatePassword(user, newPassword);
     } catch (error) {
-      console.error("Change password error:", error);
-      throw this.handleError(error);
+      console.error("Error changing password:", error);
+      throw this.handleAuthError(error);
     }
   }
 
-  async resetPassword(email) {
+  // Elimina account
+  async deleteAccount(userId, password) {
     try {
-      await sendPasswordResetEmail(auth, email);
+      const user = auth.currentUser;
+      if (!user || user.uid !== userId) {
+        throw new Error("Non autorizzato a eliminare questo account");
+      }
+
+      // Se viene fornita la password, riautentica l'utente
+      if (password) {
+        const credential = EmailAuthProvider.credential(user.email, password);
+        await reauthenticateWithCredential(user, credential);
+      }
+
+      // Elimina prenotazioni dell'utente
+      const bookingsQuery = query(
+        collection(db, "bookings"),
+        where("userId", "==", userId)
+      );
+      const bookingsSnapshot = await getDocs(bookingsQuery);
+      const deleteBookingsPromises = bookingsSnapshot.docs.map(doc => 
+        deleteDoc(doc.ref)
+      );
+      await Promise.all(deleteBookingsPromises);
+
+      // Elimina il documento utente
+      await deleteDoc(doc(db, "users", userId));
+      
+      // Elimina l'account Firebase
+      await deleteUser(user);
+
+      await this.logout();
     } catch (error) {
-      console.error("Reset password error:", error);
-      throw this.handleError(error);
+      console.error("Error deleting account:", error);
+      throw this.handleAuthError(error);
     }
   }
 
+  // Ottieni tutti gli utenti (admin)
   async getAllUsers() {
     try {
-      const usersRef = collection(db, "users");
-      const querySnapshot = await getDocs(query(usersRef));
-      return querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
+      const usersSnapshot = await getDocs(collection(db, "users"));
+      return usersSnapshot.docs.map(doc => ({
+        uid: doc.id,
+        ...doc.data()
       }));
     } catch (error) {
-      console.error("Get all users error:", error);
-      throw this.handleError(error);
+      console.error("Error getting users:", error);
+      throw this.handleAuthError(error);
     }
   }
 
+  // Approva utente (admin)
   async approveUser(userId) {
     try {
+      if (!userId) {
+        throw new Error("User ID is required");
+      }
+
       const userRef = doc(db, "users", userId);
+      
+      // Verifica se l'utente esiste
+      const userDoc = await getDoc(userRef);
+      if (!userDoc.exists()) {
+        throw new Error("Utente non trovato");
+      }
+
       await updateDoc(userRef, {
-        status: "ACTIVE",
+        status: UserStatus.ACTIVE,
+        approvedAt: new Date().toISOString()
       });
     } catch (error) {
-      console.error("Approve user error:", error);
-      throw this.handleError(error);
+      console.error("Error approving user:", error);
+      throw this.handleAuthError(error);
     }
   }
 
+  // Disabilita utente (admin)
   async disableUser(userId) {
     try {
+      if (!userId) {
+        throw new Error("User ID is required");
+      }
+
       const userRef = doc(db, "users", userId);
+      
+      // Verifica se l'utente esiste
+      const userDoc = await getDoc(userRef);
+      if (!userDoc.exists()) {
+        throw new Error("Utente non trovato");
+      }
+
       await updateDoc(userRef, {
-        status: "DISABLED",
+        status: UserStatus.DISABLED,
+        disabledAt: new Date().toISOString()
       });
     } catch (error) {
-      console.error("Disable user error:", error);
-      throw this.handleError(error);
+      console.error("Error disabling user:", error);
+      throw this.handleAuthError(error);
     }
   }
 
-  hasPermission(user, requiredPermission) {
-    if (!user) return false;
+  // Verifica permessi utente
+  hasPermission(user, permission) {
+    // Debug
+    console.log('Checking Permission:', {
+      user,
+      permission,
+      userRole: user?.role
+    });
 
-    // Se richiediamo SUPER_USER, verifichiamo il ruolo
-    if (requiredPermission === "SUPER_USER") {
-      return user.role === "SUPER_USER";
+    // Gestione speciale per SUPER_USER
+    if (permission === "SUPER_USER") {
+      return user?.role === UserRoles.SUPER_USER;
     }
 
-    // Per tutte le altre rotte, verifichiamo che l'utente sia attivo
-    return user.status === "ACTIVE";
+    if (!user || !user.role) {
+      return false;
+    }
+
+    // Verifica permesso specifico
+    const userPermissions = this.getPermissionsForRole(user.role);
+    return userPermissions.includes(permission);
   }
 
-  handleError(error) {
-    let message = "Si è verificato un errore";
+  // Ottieni permessi per ruolo
+  getPermissionsForRole(role) {
+    // Definizione dei permessi per ruolo
+    const rolePermissions = {
+      [UserRoles.SUPER_USER]: [
+        "MANAGE_USERS",
+        "VIEW_REPORTS",
+        "MANAGE_BOOKINGS",
+        "ACCESS_ADMIN",
+        "SUPER_USER"
+      ],
+      [UserRoles.USER]: ["CREATE_BOOKING", "VIEW_OWN_BOOKINGS"]
+    };
 
+    return rolePermissions[role] || [];
+  }
+
+  // Gestione errori Firebase Auth
+  handleAuthError(error) {
+    let message = "Si è verificato un errore. Riprova più tardi.";
+    
     switch (error.code) {
       case "auth/email-already-in-use":
-        message = "Email già registrata";
+        message = "Questa email è già registrata";
         break;
       case "auth/invalid-email":
         message = "Email non valida";
@@ -265,10 +341,10 @@ class AuthService {
         message = "Operazione non consentita";
         break;
       case "auth/weak-password":
-        message = "Password troppo debole";
+        message = "La password deve essere di almeno 6 caratteri";
         break;
       case "auth/user-disabled":
-        message = "Account disabilitato";
+        message = "Questo account è stato disabilitato";
         break;
       case "auth/user-not-found":
         message = "Utente non trovato";
@@ -276,14 +352,22 @@ class AuthService {
       case "auth/wrong-password":
         message = "Password non corretta";
         break;
-      case "auth/invalid-action-code":
-        message = "Codice di verifica non valido o scaduto";
+      case "auth/requires-recent-login":
+        message = "Per motivi di sicurezza, effettua nuovamente il login prima di questa operazione";
         break;
-      case "auth/expired-action-code":
-        message = "Codice di verifica scaduto";
+      case "auth/invalid-credential":
+        message = "Credenziali non valide";
+        break;
+      case "auth/invalid-verification-code":
+        message = "Codice di verifica non valido";
+        break;
+      case "auth/invalid-verification-id":
+        message = "ID di verifica non valido";
         break;
       default:
-        message = error.message || "Si è verificato un errore";
+        if (error.message) {
+          message = error.message;
+        }
     }
 
     return new Error(message);

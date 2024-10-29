@@ -10,12 +10,15 @@ import {
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { UserStatus } from "../../models/User";
-import AuthService from "../../services/authService";
+import { Alert, AlertDescription } from "../ui/alert";
 import { LoadingSpinner } from "../ui/loading-spinner";
+import AuthService from "../../services/authService";
 
 export const UserManagement = () => {
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("ALL");
 
@@ -26,40 +29,58 @@ export const UserManagement = () => {
   const loadUsers = async () => {
     try {
       setIsLoading(true);
+      setError("");
       const allUsers = await AuthService.getAllUsers();
+      console.log("Loaded users:", allUsers); // Debug log
       setUsers(allUsers);
     } catch (error) {
       console.error("Error loading users:", error);
+      setError("Errore nel caricamento degli utenti");
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleStatusChange = async (userId, newStatus) => {
+    console.log("Attempting status change:", { userId, newStatus }); // Debug log
+    
     try {
       setIsLoading(true);
+      setError("");
+      setSuccess("");
+
+      if (!userId) {
+        throw new Error("ID utente mancante");
+      }
+
       if (newStatus === UserStatus.ACTIVE) {
         await AuthService.approveUser(userId);
+        setSuccess("Utente approvato con successo");
       } else if (newStatus === UserStatus.DISABLED) {
         await AuthService.disableUser(userId);
+        setSuccess("Utente disabilitato con successo");
       }
+
       await loadUsers();
     } catch (error) {
       console.error("Error updating user status:", error);
+      setError(error.message || "Errore durante l'aggiornamento dello stato utente");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
-      user.name.toLowerCase().includes(search.toLowerCase()) ||
-      user.email.toLowerCase().includes(search.toLowerCase()) ||
-      user.phone.includes(search);
+      user.name?.toLowerCase().includes(search.toLowerCase()) ||
+      user.email?.toLowerCase().includes(search.toLowerCase()) ||
+      user.phone?.includes(search);
 
     if (filter === "ALL") return matchesSearch;
     return matchesSearch && user.status === filter;
   });
 
-  if (isLoading) {
+  if (isLoading && users.length === 0) {
     return <LoadingSpinner />;
   }
 
@@ -84,6 +105,18 @@ export const UserManagement = () => {
         </select>
       </div>
 
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {success && (
+        <Alert>
+          <AlertDescription>{success}</AlertDescription>
+        </Alert>
+      )}
+
       <Table>
         <TableHeader>
           <TableRow>
@@ -97,7 +130,7 @@ export const UserManagement = () => {
         </TableHeader>
         <TableBody>
           {filteredUsers.map((user) => (
-            <TableRow key={user.id}>
+            <TableRow key={user.uid}>
               <TableCell>{user.name}</TableCell>
               <TableCell>{user.email}</TableCell>
               <TableCell>{user.phone}</TableCell>
@@ -115,39 +148,36 @@ export const UserManagement = () => {
                 </span>
               </TableCell>
               <TableCell>
-                {new Date(user.createdAt).toLocaleDateString("it-IT")}
+                {user.createdAt ? new Date(user.createdAt).toLocaleDateString("it-IT") : 'N/A'}
               </TableCell>
               <TableCell>
                 {user.status === UserStatus.PENDING && (
                   <Button
-                    onClick={() =>
-                      handleStatusChange(user.id, UserStatus.ACTIVE)
-                    }
+                    onClick={() => handleStatusChange(user.uid, UserStatus.ACTIVE)}
                     variant="outline"
                     size="sm"
                     className="mr-2"
+                    disabled={isLoading}
                   >
                     Approva
                   </Button>
                 )}
                 {user.status === UserStatus.ACTIVE && (
                   <Button
-                    onClick={() =>
-                      handleStatusChange(user.id, UserStatus.DISABLED)
-                    }
+                    onClick={() => handleStatusChange(user.uid, UserStatus.DISABLED)}
                     variant="destructive"
                     size="sm"
+                    disabled={isLoading}
                   >
                     Disabilita
                   </Button>
                 )}
                 {user.status === UserStatus.DISABLED && (
                   <Button
-                    onClick={() =>
-                      handleStatusChange(user.id, UserStatus.ACTIVE)
-                    }
+                    onClick={() => handleStatusChange(user.uid, UserStatus.ACTIVE)}
                     variant="outline"
                     size="sm"
+                    disabled={isLoading}
                   >
                     Riattiva
                   </Button>
