@@ -63,7 +63,6 @@ export const BookingCalendar = ({ selectedDate, onDateSelect }) => {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-medium">Seleziona Data</h3>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -85,7 +84,7 @@ export const BookingCalendar = ({ selectedDate, onDateSelect }) => {
         </div>
       </div>
       <div className="grid grid-cols-7 gap-1">
-        {['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'].map(day => (
+        {['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab','Dom'].map(day => (
           <div key={day} className="text-center text-sm font-medium p-2">
             {day}
           </div>

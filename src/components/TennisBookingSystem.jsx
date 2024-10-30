@@ -123,7 +123,7 @@ const TennisBookingSystem = ({ currentUser }) => {
     <div className="p-8">
       <Card>
         <CardHeader>
-          <CardTitle>Prenota il Campo da Tennis</CardTitle>
+          <CardTitle>Prenota</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           <BookingCalendar

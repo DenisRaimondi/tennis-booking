@@ -63,7 +63,7 @@ export const TimeSelector = ({
           }}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Seleziona ora inizio" />
+            <SelectValue placeholder="Ora inizio" />
           </SelectTrigger>
           <SelectContent className="h-[200px]">
             {timeSlots.slice(0, -1).map((time) => (
@@ -94,7 +94,7 @@ export const TimeSelector = ({
           disabled={!startTime}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Seleziona ora fine" />
+            <SelectValue placeholder="Ora fine" />
           </SelectTrigger>
           <SelectContent className="h-[200px]">
             {getAvailableEndTimes().map((time) => (
