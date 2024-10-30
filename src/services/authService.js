@@ -425,6 +425,7 @@ class AuthService {
         break;
         case "auth/too-many-requests":
           message = "Errore nel sistema di autenticazione riprovare più tardi"
+          break;
       default:
         if (error.message) {
           message = error.message;
