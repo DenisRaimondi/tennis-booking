@@ -11,6 +11,11 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Alert, AlertDescription } from "../components/ui/alert";
 import GDPRConsent from "./GDPRConsent";
+import ReCAPTCHA from "react-google-recaptcha";
+
+// Chiave di test per sviluppo locale
+const RECAPTCHA_SITE_KEY = process.env.REACT_APP_RECAPTCHA_SITE_KEY || "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI";
+
 
 export const SignUpForm = ({ onSignUp, onBackToLogin, error }) => {
   const navigate = useNavigate();
@@ -26,6 +31,7 @@ export const SignUpForm = ({ onSignUp, onBackToLogin, error }) => {
     privacy: false,
   });
 
+  const [captchaToken, setCaptchaToken] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [validationError, setValidationError] = useState("");
 
@@ -49,6 +55,11 @@ export const SignUpForm = ({ onSignUp, onBackToLogin, error }) => {
 
     if (!consents.privacy) {
       setValidationError("È necessario accettare l'informativa sulla privacy");
+      return false;
+    }
+
+    if (!captchaToken) {
+      setValidationError("Per favore, completa la verifica reCAPTCHA");
       return false;
     }
 
@@ -93,6 +104,7 @@ export const SignUpForm = ({ onSignUp, onBackToLogin, error }) => {
         },
         status: "PENDING",
         role: "USER",
+        captchaToken,
       });
 
       navigate("/verify-email");
@@ -195,11 +207,19 @@ export const SignUpForm = ({ onSignUp, onBackToLogin, error }) => {
               />
             </div>
 
-            <GDPRConsent
+            <GDPRConsent 
               consents={consents}
               onChange={handleConsentsChange}
               className="mt-6"
             />
+
+            <div className="flex justify-center my-4">
+              <ReCAPTCHA
+                sitekey={RECAPTCHA_SITE_KEY}
+                onChange={token => setCaptchaToken(token)}
+                onExpired={() => setCaptchaToken(null)}
+              />
+            </div>
 
             {(validationError || error) && (
               <Alert variant="destructive">
