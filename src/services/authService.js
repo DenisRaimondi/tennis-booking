@@ -17,14 +17,12 @@ import {
   updateDoc,
   deleteDoc,
   collection,
-  query,
-  where,
   getDocs,
-  getDocFromServer,
-  limit,
 } from "firebase/firestore";
 import { auth, db } from "../config/firebase";
 import { UserRoles, UserStatus } from "../models/User";
+
+import deleteFutureBookings from "../lib/DeleteFutureBookings";
 
 class AuthService {
   // Ottiene l'utente corrente con i dati aggiuntivi da Firestore
@@ -73,7 +71,7 @@ class AuthService {
       });
 
       // Invia email di verifica
-      let p = await sendEmailVerification(user);
+      await sendEmailVerification(user);
 
       return user;
     } catch (error) {
@@ -161,7 +159,6 @@ class AuthService {
       if (userData.status === UserStatus.DISABLED) {
         await signOut(auth);
 
-        const adminEmail = await this.findAdminEmail();
         throw new Error(
           `Il tuo account è stato disabilitato. Contatta l'amministratore del sito web.`
         );
@@ -266,31 +263,9 @@ class AuthService {
         await reauthenticateWithCredential(user, credential);
       }
 
-      // Ottieni la data e ora corrente
-      const now = new Date();
-      const currentDate = now.toISOString().split("T")[0];
-      const currentTime = now.toTimeString().split(" ")[0].slice(0, 5);
-
-      // Elimina solo le prenotazioni future dell'utente
-      const bookingsQuery = query(
-        collection(db, "bookings"),
-        where("userId", "==", userId),
-        where("date", ">=", currentDate)
-      );
-
-      const bookingsSnapshot = await getDocs(bookingsQuery);
-      const deleteBookingsPromises = bookingsSnapshot.docs
-        .filter((doc) => {
-          const booking = doc.data();
-          // Se la prenotazione è di oggi, controlla anche l'ora
-          if (booking.date === currentDate) {
-            return booking.startTime > currentTime;
-          }
-          return true; // Mantieni tutte le prenotazioni future
-        })
-        .map((doc) => deleteDoc(doc.ref));
-
-      await Promise.all(deleteBookingsPromises);
+      // Prima elimina tutte le prenotazioni future
+      const deletedBookingsCount = await deleteFutureBookings(userId);
+      console.log(`Deleted ${deletedBookingsCount} future bookings`);
 
       // Elimina il documento utente
       await deleteDoc(doc(db, "users", userId));
@@ -448,6 +423,8 @@ class AuthService {
       case "auth/invalid-verification-id":
         message = "ID di verifica non valido";
         break;
+        case "auth/too-many-requests":
+          message = "Errore nel sistema di autenticazione riprovare più tardi"
       default:
         if (error.message) {
           message = error.message;
