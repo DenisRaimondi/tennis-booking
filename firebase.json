@@ -1,4 +1,8 @@
 {
+  "firestore": {
+    "rules": "firebase/$PROJECT_ENV/firestore.rules",
+    "indexes": "firebase/$PROJECT_ENV/firestore.indexes.json"
+  },
   "hosting": {
     "public": "build",
     "ignore": [
@@ -10,17 +14,6 @@
       {
         "source": "**",
         "destination": "/index.html"
-      }
-    ],
-    "headers": [
-      {
-        "source": "/service-worker.js",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache"
-          }
-        ]
       }
     ]
   }

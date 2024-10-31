@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "tennis-booking-20676"
+    "default": "tennis-booking-20676",
+    "test": "tennis-booking-20676",
+    "prod": "client-tennis-booking"  
   }
 }

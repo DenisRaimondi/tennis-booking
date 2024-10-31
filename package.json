@@ -34,16 +34,31 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "CI=false && react-scripts build",
-    "build-local": "react-scripts build",
+"switch:test": "node src/scripts/switch-firebase-account.js test",
+    "switch:prod": "node src/scripts/switch-firebase-account.js prod",
+    
+    "start": "npm run switch:test && cross-env REACT_APP_ENV=test react-scripts start",
+    "build": "cross-env CI=false && react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "init-admin": "node -r esm src/scripts/initSuperUser.js",
-    "deploy:rules": "firebase deploy --only firestore:rules",
-    "check:rules": "firebase deploy --dry-run --only firestore:rules",
-    "export:indexes": "firebase firestore:indexes > firebase/firestore.indexes.json",
-    "deploy:indexes": "firebase deploy --only firestore:indexes"
+    
+    "build:test": "cross-env REACT_APP_ENV=test react-scripts build",
+    "build:prod": "cross-env REACT_APP_ENV=production react-scripts build",
+    
+    "deploy:test": "npm run switch:test && cross-env PROJECT_ENV=test npm run build:test && firebase deploy",
+    "deploy:prod": "npm run switch:prod && cross-env PROJECT_ENV=prod npm run build:prod && firebase deploy",
+    
+    "deploy:rules:test": "npm run switch:test && cross-env PROJECT_ENV=test firebase deploy --only firestore:rules",
+    "deploy:rules:prod": "npm run switch:prod && cross-env PROJECT_ENV=prod firebase deploy --only firestore:rules",
+    
+    "deploy:indexes:test": "npm run switch:test && cross-env PROJECT_ENV=test firebase deploy --only firestore:indexes",
+    "deploy:indexes:prod": "npm run switch:prod && cross-env PROJECT_ENV=prod firebase deploy --only firestore:indexes",
+    
+    "export:rules:test": "npm run switch:test && firebase firestore:rules > firebase/test/firestore.rules",
+    "export:rules:prod": "npm run switch:prod && firebase firestore:rules > firebase/prod/firestore.rules",
+    
+    "export:indexes:test": "npm run switch:test && firebase firestore:indexes > firebase/test/firestore.indexes.json",
+    "export:indexes:prod": "npm run switch:prod && firebase firestore:indexes > firebase/prod/firestore.indexes.json"
   },
   "eslintConfig": {
     "extends": [
@@ -62,5 +77,8 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3"
   }
 }
