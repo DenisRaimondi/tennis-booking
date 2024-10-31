@@ -43,7 +43,7 @@ export const UserManagement = () => {
 
   const handleStatusChange = async (userId, newStatus) => {
     console.log("Attempting status change:", { userId, newStatus }); // Debug log
-    
+
     try {
       setIsLoading(true);
       setError("");
@@ -64,9 +64,32 @@ export const UserManagement = () => {
       await loadUsers();
     } catch (error) {
       console.error("Error updating user status:", error);
-      setError(error.message || "Errore durante l'aggiornamento dello stato utente");
+      setError(
+        error.message || "Errore durante l'aggiornamento dello stato utente"
+      );
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Aggiungi dopo gli import
+  const statusTranslations = {
+    PENDING: "In Attesa",
+    ACTIVE: "Attivo",
+    DISABLED: "Disabilitato",
+  };
+
+  // Funzione helper per ottenere il colore dello stato
+  const getStatusColor = (status) => {
+    switch (status) {
+      case "ACTIVE":
+        return "bg-green-100 text-green-800";
+      case "PENDING":
+        return "bg-yellow-100 text-yellow-800";
+      case "DISABLED":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
     }
   };
 
@@ -123,7 +146,7 @@ export const UserManagement = () => {
             <TableHead>Nome</TableHead>
             <TableHead>Email</TableHead>
             <TableHead>Telefono</TableHead>
-            <TableHead>Stato</TableHead>
+            <TableHead>Stato utente</TableHead>
             <TableHead>Registrato il</TableHead>
             <TableHead>Azioni</TableHead>
           </TableRow>
@@ -136,24 +159,24 @@ export const UserManagement = () => {
               <TableCell>{user.phone}</TableCell>
               <TableCell>
                 <span
-                  className={`px-2 py-1 rounded-full text-sm ${
-                    user.status === UserStatus.ACTIVE
-                      ? "bg-green-100 text-green-800"
-                      : user.status === UserStatus.PENDING
-                      ? "bg-yellow-100 text-yellow-800"
-                      : "bg-red-100 text-red-800"
-                  }`}
+                  className={`px-2 py-1 rounded-full text-sm ${getStatusColor(
+                    user.status
+                  )}`}
                 >
-                  {user.status}
+                  {statusTranslations[user.status] || user.status}
                 </span>
               </TableCell>
               <TableCell>
-                {user.createdAt ? new Date(user.createdAt).toLocaleDateString("it-IT") : 'N/A'}
+                {user.createdAt
+                  ? new Date(user.createdAt).toLocaleDateString("it-IT")
+                  : "N/A"}
               </TableCell>
               <TableCell>
                 {user.status === UserStatus.PENDING && (
                   <Button
-                    onClick={() => handleStatusChange(user.uid, UserStatus.ACTIVE)}
+                    onClick={() =>
+                      handleStatusChange(user.uid, UserStatus.ACTIVE)
+                    }
                     variant="outline"
                     size="sm"
                     className="mr-2"
@@ -164,7 +187,9 @@ export const UserManagement = () => {
                 )}
                 {user.status === UserStatus.ACTIVE && (
                   <Button
-                    onClick={() => handleStatusChange(user.uid, UserStatus.DISABLED)}
+                    onClick={() =>
+                      handleStatusChange(user.uid, UserStatus.DISABLED)
+                    }
                     variant="destructive"
                     size="sm"
                     disabled={isLoading}
@@ -174,7 +199,9 @@ export const UserManagement = () => {
                 )}
                 {user.status === UserStatus.DISABLED && (
                   <Button
-                    onClick={() => handleStatusChange(user.uid, UserStatus.ACTIVE)}
+                    onClick={() =>
+                      handleStatusChange(user.uid, UserStatus.ACTIVE)
+                    }
                     variant="outline"
                     size="sm"
                     disabled={isLoading}

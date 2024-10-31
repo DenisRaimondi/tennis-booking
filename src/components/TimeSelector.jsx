@@ -17,14 +17,18 @@ export const TimeSelector = ({
   onEndTimeChange,
 }) => {
   // Genera gli orari disponibili con intervalli di 15 minuti
+  // Genera gli orari disponibili con intervalli di 5 minuti
   const generateTimeSlots = () => {
     const slots = [];
-    for (let hour = 9; hour <= 20; hour++) {
-      for (let minute of ["00", "15", "30", "45"]) {
-        slots.push(`${hour.toString().padStart(2, "0")}:${minute}`);
+    for (let hour = 0; hour < 24; hour++) {
+      for (let minute = 0; minute < 60; minute += 15) {
+        slots.push(
+          `${hour.toString().padStart(2, "0")}:${minute
+            .toString()
+            .padStart(2, "0")}`
+        );
       }
     }
-    slots.push("21:00");
     return slots;
   };
 

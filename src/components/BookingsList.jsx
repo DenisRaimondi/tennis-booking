@@ -16,6 +16,19 @@ export const BookingsList = ({
   selectedDate,
   onDeleteBooking,
 }) => {
+  const isBookingCancellable = (booking) => {
+    const now = new Date();
+    now.setSeconds(0, 0);
+
+    // Creiamo la data della prenotazione
+    const bookingDate = new Date(booking.date + "T00:00:00"); // Aggiungiamo il tempo
+    const [hours, minutes] = booking.startTime.split(":");
+
+    // Impostiamo l'ora mantenendo la timezone locale
+    bookingDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+
+    return bookingDate < now;
+  };
   // Se non ci sono prenotazioni per la data selezionata
   if (bookings.length === 0) {
     return (
@@ -103,7 +116,17 @@ export const BookingsList = ({
                       variant="outline"
                       size="sm"
                       onClick={() => onDeleteBooking(booking.id)}
-                      className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                      disabled={isBookingCancellable(booking)}
+                      title={
+                        isBookingCancellable(booking)
+                          ? "Non puoi cancellare una prenotazione passata"
+                          : ""
+                      }
+                      className={`text-red-500 hover:text-red-700 hover:bg-red-50 ${
+                        isBookingCancellable(booking)
+                          ? "opacity-50 cursor-not-allowed"
+                          : ""
+                      }`}
                     >
                       <Trash2 className="w-4 h-4" />
                       <span className="ml-2">Cancella</span>
