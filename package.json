@@ -39,7 +39,11 @@
     "build-local": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "init-admin": "node -r esm src/scripts/initSuperUser.js"
+    "init-admin": "node -r esm src/scripts/initSuperUser.js",
+    "deploy:rules": "firebase deploy --only firestore:rules",
+    "check:rules": "firebase deploy --dry-run --only firestore:rules",
+    "export:indexes": "firebase firestore:indexes > firebase/firestore.indexes.json",
+    "deploy:indexes": "firebase deploy --only firestore:indexes"
   },
   "eslintConfig": {
     "extends": [
