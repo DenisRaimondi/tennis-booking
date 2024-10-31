@@ -34,6 +34,26 @@ export const TimeSelector = ({
 
   const timeSlots = generateTimeSlots();
 
+  // Funzione per verificare se un orario è nel passato
+  const isTimeInPast = (time) => {
+    const today = new Date();
+    const selectedDay = new Date(selectedDate);
+
+    // Se la data selezionata è oggi, controlla l'orario
+    if (selectedDay.toDateString() === today.toDateString()) {
+      const [hours, minutes] = time.split(":").map(Number);
+      const [currentHours, currentMinutes] = [
+        today.getHours(),
+        today.getMinutes(),
+      ];
+
+      // Confronta le ore e i minuti
+      if (hours < currentHours) return true;
+      if (hours === currentHours && minutes <= currentMinutes) return true;
+    }
+    return false;
+  };
+
   // Funzione per verificare sovrapposizioni
   const isTimeOverlapping = (startTime, endTime) => {
     return bookings.some(
@@ -67,20 +87,25 @@ export const TimeSelector = ({
           }}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Ora inizio" />
+            <SelectValue placeholder="Seleziona ora inizio" />
           </SelectTrigger>
           <SelectContent className="h-[200px]">
             {timeSlots.slice(0, -1).map((time) => (
               <SelectItem
                 key={time}
                 value={time}
-                disabled={isTimeOverlapping(
-                  time,
-                  timeSlots[timeSlots.indexOf(time) + 1]
-                )}
-                className="cursor-pointer hover:bg-gray-100"
+                disabled={
+                  isTimeOverlapping(
+                    time,
+                    timeSlots[timeSlots.indexOf(time) + 1]
+                  ) || isTimeInPast(time)
+                }
+                className={`cursor-pointer hover:bg-gray-100 ${
+                  isTimeInPast(time) ? "text-gray-400" : ""
+                }`}
               >
                 {time}
+                {isTimeInPast(time)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -98,7 +123,7 @@ export const TimeSelector = ({
           disabled={!startTime}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Ora fine" />
+            <SelectValue placeholder="Seleziona ora fine" />
           </SelectTrigger>
           <SelectContent className="h-[200px]">
             {getAvailableEndTimes().map((time) => (
