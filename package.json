@@ -42,7 +42,7 @@
     "eject": "react-scripts eject",
     "build:test": "cross-env REACT_APP_ENV=test react-scripts build",
     "build:prod": "cross-env REACT_APP_ENV=production react-scripts build",
-    "deploy:test": "npm run switch:test && cross-env PROJECT_ENV=test npm run build:test && firebase deploy",
+    "deploy:test": "npm run switch:test && cross-env PROJECT_ENV=test CI=false npm run build:test && firebase deploy",
     "deploy:prod": "npm run switch:prod && cross-env PROJECT_ENV=prod npm run build:prod && firebase deploy",
     "deploy:rules:test": "npm run switch:test && cross-env PROJECT_ENV=test firebase deploy --only firestore:rules",
     "deploy:rules:prod": "npm run switch:prod && cross-env PROJECT_ENV=prod firebase deploy --only firestore:rules",
