@@ -1,0 +1,37 @@
+name: Deploy to Test Environment
+on:
+  push:
+    branches:
+      - develop
+jobs:
+  deploy_test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+          
+      - name: Install Dependencies
+        run: npm install
+        
+      - name: Build
+        run: npm run build:test
+        env:
+          REACT_APP_ENV: test
+          REACT_APP_FIREBASE_API_KEY_TEST: ${{ secrets.FIREBASE_API_KEY_TEST }}
+          REACT_APP_FIREBASE_AUTH_DOMAIN_TEST: ${{ secrets.FIREBASE_AUTH_DOMAIN_TEST }}
+          REACT_APP_FIREBASE_PROJECT_ID_TEST: ${{ secrets.FIREBASE_PROJECT_ID_TEST }}
+          REACT_APP_FIREBASE_STORAGE_BUCKET_TEST: ${{ secrets.FIREBASE_STORAGE_BUCKET_TEST }}
+          REACT_APP_FIREBASE_MESSAGING_SENDER_ID_TEST: ${{ secrets.FIREBASE_MESSAGING_SENDER_ID_TEST }}
+          REACT_APP_FIREBASE_APP_ID_TEST: ${{ secrets.FIREBASE_APP_ID_TEST }}
+          
+      - name: Deploy to Firebase Test
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TEST }}
+          channelId: live
+          projectId: ${{ secrets.FIREBASE_PROJECT_ID_TEST }}

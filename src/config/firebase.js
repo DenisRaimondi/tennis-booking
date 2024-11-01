@@ -1,5 +1,8 @@
 import { firebaseConfig as testConfig } from "./firebase.test";
 import { firebaseConfig as prodConfig } from "./firebase.prod";
+import { initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
 export const firebaseConfig =
   process.env.REACT_APP_ENV === "production" ? prodConfig : testConfig;
